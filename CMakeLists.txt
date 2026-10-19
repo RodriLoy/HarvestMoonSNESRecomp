@@ -46,6 +46,7 @@ add_executable(HarvestMoonSNESRecomp
     src/hm_qol.c
     src/hm_pause.c
     src/hm_i18n.c
+    src/hm_launcher_theme.c
     src/hm_title.c
     src/hm_widescreen.c
 )
@@ -153,6 +154,17 @@ include(${RECOMP_UI_ROOT}/recomp_ui.cmake)
 # so this configures cleanly before any art is fetched.
 recomp_target_launcher_ui(HarvestMoonSNESRecomp CONSOLE snes
     BOXART "${CMAKE_SOURCE_DIR}/launcher_assets/img/boxart.tga")
+
+# Program icon (Windows: embedded resource; elsewhere the launcher window loads
+# assets/img/icon.png, see src/hm_launcher_theme.c).
+if(WIN32)
+  enable_language(RC)
+  target_sources(HarvestMoonSNESRecomp PRIVATE src/hm_app.rc)
+endif()
+add_custom_command(TARGET HarvestMoonSNESRecomp POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "${CMAKE_SOURCE_DIR}/launcher_assets/img/icon.png"
+          $<TARGET_FILE_DIR:HarvestMoonSNESRecomp>/assets/img/icon.png)
 
 # Generate & rebuild from inside the launcher: pick ROM -> recompile locally
 # -> cmake --build -> relaunch. The implementation is the framework's; this

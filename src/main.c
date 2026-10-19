@@ -31,6 +31,7 @@
 #include "hm_default_config.h"
 #include "hm_pause.h"
 #include "hm_widescreen.h"
+#include "hm_launcher_theme.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -77,6 +78,8 @@ static const SnesDesktopHostGame kGameHost = {
     .native_widescreen   = 1,
     .prepare_frame       = hm_ws_prepare_frame,
     .begin_sim_frame     = hm_ws_begin_sim_frame,
+    /* Launcher look: Harvest Moon colors (src/hm_launcher_theme.c). */
+    .configure_launcher  = hm_configure_launcher,
 };
 
 #ifndef __ANDROID__

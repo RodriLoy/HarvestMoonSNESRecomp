@@ -1,0 +1,3 @@
+// Windows: the program's icon (Explorer, taskbar, and SDL's windows, which
+// take the first icon resource of the .exe). Made by tools/gen_boxart.py.
+1 ICON "../launcher_assets/img/icon.ico"

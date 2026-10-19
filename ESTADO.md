@@ -4,7 +4,7 @@ Este archivo es la "memoria" del proyecto: qué está hecho, cómo se hace cada
 cosa y qué falta, para retomarlo sin perder nada. La descompilación está
 pausada en su propio proyecto (ver HarvestMoonDecomp/ESTADO.md).
 
-## Versión actual: 0.6
+## Versión actual: 0.7
 
 Port nativo de Harvest Moon (SNES, USA) hecho con SNESRecomp
 (framework fijado en `framework_pins.txt`, con parches propios en
@@ -22,6 +22,7 @@ Port nativo de Harvest Moon (SNES, USA) hecho con SNESRecomp
 | Pantalla ancha 16:9 | `src/hm_widescreen.c`, `tools/apply_overrides.py` | Funciona (activada por defecto) |
 | Sin ventana de consola en Windows | `CMakeLists.txt` | Funciona |
 | Varios idiomas (inglés por defecto, español, italiano): launcher, Mods, menú de pausa | `recomp-ui` (parche), `src/hm_i18n.c` | Funciona |
+| Aspecto Harvest Moon en el launcher (colores, dibujo original, ícono) | `src/hm_launcher_theme.c`, `tools/gen_boxart.py`, `src/hm_app.rc`, `recomp-ui` (parche 0002) | Funciona |
 | Windows x64 y Windows ARM64 | `cmake/*.cmake` | Compilan; ARM64 sin probar en tu PC |
 
 Mapa de memoria con nombres: `src/hm_ram.h` (lo usa también la descompilación).
@@ -36,6 +37,12 @@ Mapa de memoria con nombres: `src/hm_ram.h` (lo usa también la descompilación)
 - **OPTIONS en el título**: la palabra se arma con letras de las otras tres
   opciones (leídas de la VRAM) y se dibuja como objeto del PPU; el cursor del
   juego se reposiciona para que su propio movimiento caiga donde queremos.
+- **Aspecto del launcher**: `configure_launcher` entrega una paleta propia
+  (`gi->custom_theme`, campo nuevo del parche 0002 de recomp-ui): fondo verde
+  noche, ámbar de luna como color principal, verde hoja en los títulos, sin
+  líneas de CRT. El dibujo (`launcher_assets/img/boxart.tga`) y el ícono
+  (`icon.ico`/`icon.png`) son originales, hechos con figuras por
+  `tools/gen_boxart.py`; no copian la portada del juego.
 - **Pantalla ancha**: campo de 342 px. Cada lado se abre según el rango de
   cámara del mapa ($ED/$F1), así nunca se ve fuera del mapa; la capa de texto
   (BG3) queda en el centro; el recorte de sprites de PrepareOAMData se amplía
@@ -63,10 +70,9 @@ Windows ARM64: `-DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows-arm64.cmake` (Zig).
 ## Pendiente (para cuando se retome)
 
 1. Probar la versión ARM64 en tu PC y corregir lo que aparezca.
-2. Opcional: saltar la intro (calidad de vida).
-3. Opcional: darle aspecto Harvest Moon al launcher (colores, imagen). Ya es multi-idioma.
-4. Descartado por ahora: modo 120/144 Hz (tu pantalla es de 60 Hz).
-5. Cuando la descompilación tenga un sistema entero verificado, decidir si
+2. Descartado por ahora: saltar la intro (decidido el 19-oct-2026).
+3. Descartado por ahora: modo 120/144 Hz (tu pantalla es de 60 Hz).
+4. Cuando la descompilación tenga un sistema entero verificado, decidir si
    el juego pasa a usar esas rutinas reescritas.
 
 ## Historial
@@ -79,3 +85,4 @@ Windows ARM64: `-DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows-arm64.cmake` (Zig).
 | 0.4 | OPTIONS en el título, versión ARM64 |
 | 0.5 | Pantalla ancha 16:9, sin consola; la descompilación pasa a su propio proyecto |
 | 0.6 | Launcher, Mods y menú de pausa en varios idiomas (inglés por defecto) |
+| 0.7 | Launcher con aspecto Harvest Moon e ícono propio |
