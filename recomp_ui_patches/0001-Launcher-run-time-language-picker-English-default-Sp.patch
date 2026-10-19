@@ -1,0 +1,2674 @@
+From 30219b1211ce23c8b1c6cc8384b459c9c9710c69 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 12:28:13 -0600
+Subject: [PATCH] Launcher: run-time language picker (English default),
+ Spanish, wider coverage
+
+- launcher_i18n: languages chosen at run time and saved to config.ini
+  [General] LauncherLanguage; English stays the default. Built-in Spanish
+  and Italian; games register more strings/languages with
+  launcher_i18n_register(). 'Label##id' keeps its id; 'Text||context' keys
+  translate only through an explicit entry.
+- Header combo to switch language live.
+- Literal ImGui labels, ROM status, binding rows/chips and the install
+  button now go through ui_text().
+
+---
+ src/common/backends/imgui/launcher_imgui.cpp | 579 ++++++++++---------
+ src/common/launcher_i18n.cpp                 | 560 +++++++++++++++++-
+ src/common/launcher_i18n.h                   |  44 ++
+ src/common/launcher_ng_capi.c                |   3 +
+ 4 files changed, 891 insertions(+), 295 deletions(-)
+
+diff --git a/src/common/backends/imgui/launcher_imgui.cpp b/src/common/backends/imgui/launcher_imgui.cpp
+index 4dc73c7..37aaeaf 100644
+--- a/src/common/backends/imgui/launcher_imgui.cpp
++++ b/src/common/backends/imgui/launcher_imgui.cpp
+@@ -94,6 +94,44 @@ static const char* ui_text(const char* en) {
+     return launcher_i18n_text(en);
+ }
+ 
++/* A key or pad-button name on a binding chip: translated only where an
++ * explicit "Name||button" entry exists ("Back" the pad button must not
++ * become "Volver" the navigation verb). */
++static const char* button_text(const char* name) {
++    static std::string key;
++    key = std::string(name ? name : "") + "||button";
++    return launcher_i18n_text(key.c_str());
++}
++
++/* Header language picker: the current language's native name; the popup
++ * lists every language (built-in and game-registered). The choice is saved
++ * to config.ini right away, so the next launch opens in it. */
++extern "C" const char* g_launcher_config_path;
++static void language_picker(float w, float h) {
++    const char* cur = launcher_i18n_language();
++    const char* name = cur;
++    for (int i = 0; i < launcher_i18n_language_count(); ++i)
++        if (std::strcmp(launcher_i18n_language_code(i), cur) == 0)
++            name = launcher_i18n_language_name(i);
++    /* A combo, padded to the height of the header buttons beside it. */
++    const float pad_y = (h - ImGui::GetFontSize()) * 0.5f;
++    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
++                        ImVec2(ImGui::GetStyle().FramePadding.x, pad_y > 0 ? pad_y : 0));
++    ImGui::SetNextItemWidth(w);
++    if (ImGui::BeginCombo("##language", name)) {
++        for (int i = 0; i < launcher_i18n_language_count(); ++i) {
++            const char* code = launcher_i18n_language_code(i);
++            if (ImGui::Selectable(launcher_i18n_language_name(i),
++                                  std::strcmp(code, cur) == 0)) {
++                launcher_i18n_set_language(code);
++                launcher_i18n_save_config(g_launcher_config_path);
++            }
++        }
++        ImGui::EndCombo();
++    }
++    ImGui::PopStyleVar();
++}
++
+ struct ShaderPresetEntry {
+     std::string label;
+     std::string path;
+@@ -741,8 +779,7 @@ static void draw_builtin_rom_picker_contents(LauncherModel* m,
+                                              bool standalone_popup) {
+     namespace fs = std::filesystem;
+     ImGui::TextColored(col(th.accent), "%s", g_picker.title);
+-    ImGui::TextColored(col(th.text_muted),
+-                       "Built-in browser (no desktop file-picker service required)");
++    ImGui::TextColored(col(th.text_muted), ui_text("Built-in browser (no desktop file-picker service required)"));
+     if (!g_picker.description.empty())
+         ImGui::TextColored(col(th.text_muted), "Showing: %s",
+                            g_picker.description.c_str());
+@@ -765,7 +802,7 @@ static void draw_builtin_rom_picker_contents(LauncherModel* m,
+             g_picker.error[0] = '\0';
+     }
+ 
+-    if (ImGui::Button("Up", ImVec2(px(82), px(30)))) {
++    if (ImGui::Button(ui_text("Up"), ImVec2(px(82), px(30)))) {
+         fs::path parent = fs::path(g_picker.directory).parent_path();
+         if (!parent.empty()) {
+             std::snprintf(g_picker.directory, sizeof(g_picker.directory),
+@@ -775,7 +812,7 @@ static void draw_builtin_rom_picker_contents(LauncherModel* m,
+         }
+     }
+     ImGui::SameLine();
+-    if (ImGui::Button("Home", ImVec2(px(82), px(30)))) {
++    if (ImGui::Button(ui_text("Home"), ImVec2(px(82), px(30)))) {
+         if (const char* home = std::getenv("HOME")) {
+             std::snprintf(g_picker.directory, sizeof(g_picker.directory),
+                           "%s", home);
+@@ -1267,10 +1304,8 @@ static void np_player_menu(LauncherModel* m, const LauncherTheme& th,
+ 
+     const bool has_key = account && account[0];
+     if (!has_key) {
+-        ImGui::TextColored(col(th.text_muted),
+-                           "Signed-out players cannot be ignored:");
+-        ImGui::TextColored(col(th.text_muted),
+-                           "there is no account to remember.");
++        ImGui::TextColored(col(th.text_muted), ui_text("Signed-out players cannot be ignored:"));
++        ImGui::TextColored(col(th.text_muted), ui_text("there is no account to remember."));
+         ImGui::EndPopup();
+         return;
+     }
+@@ -1279,7 +1314,7 @@ static void np_player_menu(LauncherModel* m, const LauncherTheme& th,
+     bool ignored = lvl != RECOMP_MOD_NONE;
+     bool blocked = lvl == RECOMP_MOD_BLOCKED;
+ 
+-    if (ImGui::MenuItem("Ignore Player", nullptr, ignored, !blocked)) {
++    if (ImGui::MenuItem(ui_text("Ignore Player"), nullptr, ignored, !blocked)) {
+         recomp_moderation_set(account, name,
+                               ignored ? RECOMP_MOD_NONE : RECOMP_MOD_IGNORED);
+     }
+@@ -1287,7 +1322,7 @@ static void np_player_menu(LauncherModel* m, const LauncherTheme& th,
+         ImGui::SetTooltip(blocked ? "Already blocked, which includes this"
+                                   : "Hide their chat. They can still be in "
+                                     "your lobby.");
+-    if (ImGui::MenuItem("Block Player", nullptr, blocked)) {
++    if (ImGui::MenuItem(ui_text("Block Player"), nullptr, blocked)) {
+         recomp_moderation_set(account, name,
+                               blocked ? RECOMP_MOD_NONE : RECOMP_MOD_BLOCKED);
+     }
+@@ -1309,7 +1344,7 @@ static void np_player_menu(LauncherModel* m, const LauncherTheme& th,
+     const auto* np_rep = np_cb(m);
+     if (mid && mid[0] && np_rep && np_rep->chat_report) {
+         ImGui::Separator();
+-        if (ImGui::MenuItem("Report Message...")) {
++        if (ImGui::MenuItem(ui_text("Report Message..."))) {
+             std::snprintf(m->netplay_report_mid, sizeof(m->netplay_report_mid),
+                           "%s", mid);
+             std::snprintf(m->netplay_report_who, sizeof(m->netplay_report_who),
+@@ -1326,7 +1361,7 @@ static void np_player_menu(LauncherModel* m, const LauncherTheme& th,
+     }
+ 
+     ImGui::Separator();
+-    if (ImGui::MenuItem("Moderation list..."))
++    if (ImGui::MenuItem(ui_text("Moderation list...")))
+         m->netplay_moderation_modal_open = true;
+     ImGui::EndPopup();
+ }
+@@ -1828,7 +1863,7 @@ void stepper(const char* id, int value, const char* suffix, int* out_delta,
+         const float want = total_w - bw * 2.0f - gap * 2.0f;
+         if (want > fw) fw = want;
+     }
+-    if (ImGui::Button("-", ImVec2(bw, bh))) *out_delta = -5;
++    if (ImGui::Button(ui_text("-"), ImVec2(bw, bh))) *out_delta = -5;
+     ImGui::SameLine(0, gap);
+     // value centered in a fixed-width field so "+" never shifts with the digits
+     char buf[32]; snprintf(buf, sizeof(buf), "%d%s", value, suffix);
+@@ -1839,7 +1874,7 @@ void stepper(const char* id, int value, const char* suffix, int* out_delta,
+     ImGui::TextUnformatted(buf);
+     ImGui::SameLine(0, 0);
+     ImGui::SetCursorPosX(cx + fw + gap);
+-    if (ImGui::Button("+", ImVec2(bw, bh))) *out_delta = +5;
++    if (ImGui::Button(ui_text("+"), ImVec2(bw, bh))) *out_delta = +5;
+     ImGui::PopID();
+ }
+ 
+@@ -2147,9 +2182,9 @@ void draw_verdict_block(LauncherModel* m, const LauncherTheme& th, float availw)
+     // em-dashes with no pass/fail marks so the layout still reserves the rows.
+     if (ImGui::BeginTable("verdict_checklist", 3, ImGuiTableFlags_SizingStretchProp)) {
+         const float label_width = std::max(px(96), ImGui::CalcTextSize(ui_text("ISO header")).x + px(18));
+-        ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, label_width);
+-        ImGui::TableSetupColumn("v", ImGuiTableColumnFlags_WidthStretch);
+-        ImGui::TableSetupColumn("m", ImGuiTableColumnFlags_WidthFixed, px(28));
++        ImGui::TableSetupColumn(ui_text("k"), ImGuiTableColumnFlags_WidthFixed, label_width);
++        ImGui::TableSetupColumn(ui_text("v"), ImGuiTableColumnFlags_WidthStretch);
++        ImGui::TableSetupColumn(ui_text("m"), ImGuiTableColumnFlags_WidthFixed, px(28));
+         const char* dash = "\xE2\x80\x94";
+         kv_row("Serial",     pending ? dash : (v.serial[0] ? v.serial : dash),
+                th, !pending, v.serial[0] != '\0');
+@@ -2233,9 +2268,9 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+     } else {
+         const bool verified = launcher_model_rom_verified(m);
+         char line[64];
+-        if (!m->rom_present)   snprintf(line, sizeof(line), "No %s loaded", noun);
+-        else if (verified)     snprintf(line, sizeof(line), "%s verified", noun);
+-        else                   snprintf(line, sizeof(line), "%s not recognized", noun);
++        if (!m->rom_present)   snprintf(line, sizeof(line), ui_text("No %s loaded"), ui_text(noun));
++        else if (verified)     snprintf(line, sizeof(line), ui_text("%s verified"), ui_text(noun));
++        else                   snprintf(line, sizeof(line), ui_text("%s not recognized"), ui_text(noun));
+         float w = ImGui::GetTextLineHeight() + px(6) + ImGui::CalcTextSize(line).x;
+         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (availw - w) * 0.5f);
+         state_mark(verified, th);
+@@ -2248,8 +2283,8 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+     // question is answered by the ROM-verified line above; raw size and CRC/SHA
+     // digests are developer noise, so they're not shown.
+     if (ImGui::BeginTable("meta", 2, ImGuiTableFlags_SizingStretchProp)) {
+-        ImGui::TableSetupColumn("k", ImGuiTableColumnFlags_WidthFixed, px(76));
+-        ImGui::TableSetupColumn("v", ImGuiTableColumnFlags_WidthStretch);
++        ImGui::TableSetupColumn(ui_text("k"), ImGuiTableColumnFlags_WidthFixed, px(76));
++        ImGui::TableSetupColumn(ui_text("v"), ImGuiTableColumnFlags_WidthStretch);
+         // The disc-verdict block already reports Region in its checklist, so
+         // don't repeat it here. Otherwise show Region only when the host gave
+         // one — an empty value would render a bare "Region" label with nothing
+@@ -2306,12 +2341,12 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+     if (builtin_file_picker_should_be_offered()) {
+         ImGui::TextColored(col(th.text_muted), "%s",
+                            g_native_picker_failed
+-                               ? "The desktop file picker could not run."
+-                               : "No desktop file picker (zenity/kdialog) found.");
++                               ? ui_text("The desktop file picker could not run.")
++                               : ui_text("No desktop file picker (zenity/kdialog) found."));
+         char builtin_label[64];
+         snprintf(builtin_label, sizeof(builtin_label), "%s %s",
+                  ui_text("Browse For"), ui_text(noun));
+-        std::strncat(builtin_label, " (built-in)",
++        std::strncat(builtin_label, ui_text(" (built-in)"),
+                      sizeof(builtin_label) - std::strlen(builtin_label) - 1);
+         if (ImGui::Button(builtin_label, ImVec2(availw, px(28)))) {
+             const SystemProfile* prof = (const SystemProfile*)m->profile;
+@@ -2365,7 +2400,7 @@ void draw_game_panel(LauncherModel* m, const LauncherTheme& th, bool fill_h = fa
+         if (ImGui::BeginChild("msu1_patch_block", ImVec2(availw, 0),
+                               ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
+                               ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+-            ImGui::TextColored(col(th.warn), "MSU-1 patch available");
++            ImGui::TextColored(col(th.warn), ui_text("MSU-1 patch available"));
+             const float inner_w = ImGui::GetContentRegionAvail().x;
+             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + inner_w);
+             ImGui::TextColored(col(th.text_muted), "%s",
+@@ -2430,7 +2465,7 @@ void draw_save_row(LauncherModel* m, const LauncherTheme& th) {
+         if (!s_pw_editing) {
+             ImGui::AlignTextToFramePadding();
+             if (m->password_text[0]) ImGui::TextUnformatted(m->password_text);
+-            else ImGui::TextColored(col(th.text_muted), "(Not set)");
++            else ImGui::TextColored(col(th.text_muted), ui_text("(Not set)"));
+             ImGui::SameLine(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - bw);
+             if (ImGui::Button(ui_text("Edit"), ImVec2(bw, px(30)))) {
+                 snprintf(s_pw_buf, sizeof(s_pw_buf), "%s", m->password_text);
+@@ -2470,9 +2505,14 @@ void draw_save_row(LauncherModel* m, const LauncherTheme& th) {
+     const float bw = px(84);
+     ImGui::PushStyleColor(ImGuiCol_Text, col(th.text_muted));
+     ImGui::AlignTextToFramePadding();
+-    ImGui::TextUnformatted(ui_text("Save"));
++    const char* save_label = ui_text("Save||battery save row label");
++    ImGui::TextUnformatted(save_label);
+     ImGui::PopStyleColor();
+-    ImGui::SameLine(px(76));
++    {   /* the value column starts at 76 px, or after a longer label */
++        float x = px(76);
++        const float need = ImGui::GetCursorStartPos().x + ImGui::CalcTextSize(save_label).x + px(8);
++        ImGui::SameLine(need > x ? need : x);
++    }
+     ImGui::AlignTextToFramePadding();
+     if (has_save) {
+         // Just the file name (no size annotation) — right-elided with "…" so a
+@@ -2493,11 +2533,11 @@ void draw_save_row(LauncherModel* m, const LauncherTheme& th) {
+         }
+         ImGui::TextUnformatted(shown);
+     } else {
+-        ImGui::TextColored(col(th.text_muted), "no save yet");
++        ImGui::TextColored(col(th.text_muted), ui_text("no save yet"));
+     }
+     ImGui::SameLine(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - bw*2 - px(th.spacing_sm));
+     static const char* kSramPatterns[] = { "*.srm", "*.sav" };
+-    if (ImGui::Button("Import", ImVec2(bw, px(30)))) {
++    if (ImGui::Button(ui_text("Import"), ImVec2(bw, px(30)))) {
+         ui_pick_file(m, "Import SRAM save", {"*.srm", "*.sav"},
+                      "Battery save (.srm .sav)", [m](const char* path) {
+                          if (path)
+@@ -3725,7 +3765,7 @@ static void draw_aspect_row(LauncherModel* m, const LauncherTheme& th) {
+     if (m->aspect_experimental) {
+         ImGui::SameLine(0, px(8));
+         ImGui::AlignTextToFramePadding();
+-        ImGui::TextColored(col(th.warn), "EXPERIMENTAL");
++        ImGui::TextColored(col(th.warn), ui_text("EXPERIMENTAL"));
+     }
+     if (m->aspect_setting_help && m->aspect_setting_help[0] &&
+         ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+@@ -3841,7 +3881,7 @@ void draw_shader_row(LauncherModel* m, const LauncherTheme& th, float col_w = 0.
+                                                           shader_dir.string().c_str());
+     }
+     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+-        ImGui::SetTooltip("Open assets/shaders to add presets.");
++        ImGui::SetTooltip(ui_text("Open assets/shaders to add presets."));
+     ImGui::SameLine(0, gap);
+     ImGui::BeginDisabled(!m->s.shader_path[0]);
+     if (ImGui::Button(ui_text("Clear"), ImVec2(clear_w, px(30))))
+@@ -4158,7 +4198,7 @@ void draw_display_controls(LauncherModel* m, const LauncherTheme& th) {
+         if (ImGui::Checkbox("##dynamic_resolution", &enabled))
+             m->s.dynamic_resolution = enabled ? 1 : 0;
+         if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+-            ImGui::SetTooltip("Steps down when the game misses frame budgets, then returns to full resolution when there is room.");
++            ImGui::SetTooltip(ui_text("Steps down when the game misses frame budgets, then returns to full resolution when there is room."));
+         if (enabled) {
+             static const int floors[] = {1, 720, 1080, 1440};
+             static const char* labels[] = {"Native", "720p", "1080p", "1440p"};
+@@ -4587,7 +4627,7 @@ void draw_input_controls(LauncherModel* m, const LauncherTheme& th) {
+     bool previous_row = false;
+     if (launcher_model_multitap_available(m)) {
+         bool on = launcher_model_multitap_enabled(m) != 0;
+-        if (ImGui::Checkbox("Multitap", &on) &&
++        if (ImGui::Checkbox(ui_text("Multitap"), &on) &&
+             (on ? 1 : 0) != launcher_model_multitap_enabled(m))
+             launcher_model_toggle_multitap(m);
+         previous_row = true;
+@@ -4606,7 +4646,7 @@ void draw_input_controls(LauncherModel* m, const LauncherTheme& th) {
+         if (previous_row)
+             ImGui::Dummy(ImVec2(0, px(th.spacing_sm)));
+         bool on = launcher_model_multitap_analog_enabled(m) != 0;
+-        if (ImGui::Checkbox("Multitap analog (hack)", &on) &&
++        if (ImGui::Checkbox(ui_text("Multitap analog (hack)"), &on) &&
+             (on ? 1 : 0) != launcher_model_multitap_analog_enabled(m))
+             launcher_model_toggle_multitap_analog(m);
+         previous_row = true;
+@@ -4625,7 +4665,7 @@ void draw_input_controls(LauncherModel* m, const LauncherTheme& th) {
+         if (previous_row)
+             ImGui::Dummy(ImVec2(0, px(th.spacing_sm)));
+         bool on = launcher_model_virtual_stylus_enabled(m) != 0;
+-        if (ImGui::Checkbox("Virtual Stylus", &on) &&
++        if (ImGui::Checkbox(ui_text("Virtual Stylus"), &on) &&
+             (on ? 1 : 0) != launcher_model_virtual_stylus_enabled(m))
+             launcher_model_toggle_virtual_stylus(m);
+     }
+@@ -4809,12 +4849,12 @@ void draw_solar_controls(LauncherModel* m, const LauncherTheme& th) {
+         if (ImGui::Button(manual ? "Live" : "Live ✓", ImVec2(bw, px(28))))
+             launcher_model_set_solar_source(m, 0);
+         if (ImGui::IsItemHovered())
+-            ImGui::SetTooltip("Read the current sunlight where you are.");
++            ImGui::SetTooltip(ui_text("Read the current sunlight where you are."));
+         ImGui::SameLine(0.0f, px(th.spacing_sm));
+         if (ImGui::Button(manual ? "Fixed ✓" : "Fixed", ImVec2(bw, px(28))))
+             launcher_model_set_solar_source(m, 1);
+         if (ImGui::IsItemHovered())
+-            ImGui::SetTooltip("Hold a chosen level. Makes no network request.");
++            ImGui::SetTooltip(ui_text("Hold a chosen level. Makes no network request."));
+     }
+ 
+     if (m->s.solar_source != 0) {
+@@ -4997,7 +5037,7 @@ void panel_hotkeys_draw(LauncherModel* m, const LauncherTheme* th) {
+ // registry's available() gate.
+ void draw_settings(LauncherModel* m, const LauncherTheme& th) {
+     if (m->settings_saved_on_exit) {
+-        ImGui::TextDisabled("Changes are saved when you press Play or close the launcher.");
++        ImGui::TextDisabled(ui_text("Changes are saved when you press Play or close the launcher."));
+         ImGui::Spacing();
+     }
+     // Row 1: DISPLAY | AUDIO share the top band. For the legacy minimal
+@@ -5300,12 +5340,12 @@ void draw_assist_binding_editor(LauncherModel* m, const LauncherTheme& th,
+     if (ImGui::BeginTable(table_id, pad_col ? 3 : 2,
+                           ImGuiTableFlags_SizingFixedFit |
+                               ImGuiTableFlags_RowBg)) {
+-        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed,
++        ImGui::TableSetupColumn(ui_text("Action"), ImGuiTableColumnFlags_WidthFixed,
+                                 px(150));
+-        ImGui::TableSetupColumn("Keyboard", ImGuiTableColumnFlags_WidthFixed,
++        ImGui::TableSetupColumn(ui_text("Keyboard"), ImGuiTableColumnFlags_WidthFixed,
+                                 px(180));
+         if (pad_col)
+-            ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthFixed,
++            ImGui::TableSetupColumn(ui_text("Controller"), ImGuiTableColumnFlags_WidthFixed,
+                                     px(180));
+         ImGui::TableHeadersRow();
+         int count = m->assist_binding_count;
+@@ -5354,7 +5394,7 @@ void draw_assist_binding_editor(LauncherModel* m, const LauncherTheme& th,
+                                         : "Reset Host Shortcuts"))
+         launcher_model_reset_assist_bindings(m);
+     if (m->capturing && m->capture_assist)
+-        ImGui::TextColored(col(th.warn), "Listening... (Esc cancels, Backspace unbinds)");
++        ImGui::TextColored(col(th.warn), ui_text("Listening... (Esc cancels, Backspace unbinds)"));
+ }
+ 
+ void draw_controller_assist_shortcuts(LauncherModel* m,
+@@ -5371,12 +5411,12 @@ void draw_controller_assist_shortcuts(LauncherModel* m,
+     if (ImGui::BeginTable("controller_assist_binds", pad_col ? 3 : 2,
+                           ImGuiTableFlags_SizingStretchProp |
+                               ImGuiTableFlags_RowBg)) {
+-        ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch,
++        ImGui::TableSetupColumn(ui_text("Action"), ImGuiTableColumnFlags_WidthStretch,
+                                 1.1f);
+-        ImGui::TableSetupColumn("Keyboard", ImGuiTableColumnFlags_WidthStretch,
++        ImGui::TableSetupColumn(ui_text("Keyboard"), ImGuiTableColumnFlags_WidthStretch,
+                                 1.0f);
+         if (pad_col)
+-            ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthStretch,
++            ImGui::TableSetupColumn(ui_text("Controller"), ImGuiTableColumnFlags_WidthStretch,
+                                     1.0f);
+         ImGui::TableHeadersRow();
+         for (int action = 0; action < m->assist_binding_count; ++action) {
+@@ -5415,7 +5455,7 @@ void draw_controller_assist_shortcuts(LauncherModel* m,
+     if (pad_col) draw_assist_pad_chord_hint(m, th);
+     else         draw_assist_pad_unavailable_hint(m, th);
+     if (m->capturing && m->capture_assist)
+-        ImGui::TextColored(col(th.warn), "Listening... (Esc cancels, Backspace unbinds)");
++        ImGui::TextColored(col(th.warn), ui_text("Listening... (Esc cancels, Backspace unbinds)"));
+ }
+ 
+ void draw_assist_tools(LauncherModel* m, const LauncherTheme& th) {
+@@ -5490,6 +5530,7 @@ void draw_credits(LauncherModel* m, const LauncherTheme& th) {
+ static void bind_row_label(const char* label, const ImVec4& colour,
+                            float label_col_w, float min_gap) {
+     ImGui::AlignTextToFramePadding();
++    label = ui_text(label);
+     ImGui::TextColored(colour, "%s", label);
+     const float pad = label_col_w - ImGui::CalcTextSize(label).x;
+     ImGui::SameLine(0.0f, pad > min_gap ? pad : min_gap);
+@@ -5535,14 +5576,14 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+ 
+             ImGui::SameLine();
+             if (!can_pad) ImGui::BeginDisabled();
+-            if (ImGui::Button("Save Profile"))
++            if (ImGui::Button(ui_text("Save Profile")))
+                 launcher_binds_save_snes_gamepad(m, p + 1);
+             if (ImGui::IsItemHovered() && can_pad)
+                 ImGui::SetTooltip("Store this controller's mapping, name and "
+                                   "deadzone so it comes back next time it is "
+                                   "selected");
+             ImGui::SameLine();
+-            if (ImGui::Button("Rename")) {
++            if (ImGui::Button(ui_text("Rename"))) {
+                 std::snprintf(s_snes_rename_buf, sizeof(s_snes_rename_buf),
+                               "%s", m->player_pad_name[p]);
+                 s_snes_rename_open = true;
+@@ -5554,7 +5595,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     ImGui::SameLine(right - del_w);
+                 else
+                     ImGui::SameLine();
+-                if (ImGui::Button("Delete Profile", ImVec2(del_w, 0)))
++                if (ImGui::Button(ui_text("Delete Profile"), ImVec2(del_w, 0)))
+                     launcher_binds_delete_snes_gamepad(m, p + 1);
+                 if (ImGui::IsItemHovered() && can_pad)
+                     ImGui::SetTooltip("Forget this controller's saved profile. "
+@@ -5567,21 +5608,21 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::SetNextWindowPos(c2, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+             if (ImGui::BeginPopupModal("Rename Controller", &s_snes_rename_open,
+                                        ImGuiWindowFlags_AlwaysAutoResize)) {
+-                ImGui::TextUnformatted("Display name for this controller:");
++                ImGui::TextUnformatted(ui_text("Display name for this controller:"));
+                 ImGui::SetNextItemWidth(px(320));
+                 const bool enter = ImGui::InputText(
+                     "##snes_rename_pad", s_snes_rename_buf,
+                     sizeof(s_snes_rename_buf),
+                     ImGuiInputTextFlags_EnterReturnsTrue);
+                 ImGui::Spacing();
+-                if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++                if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+                     s_snes_rename_open = false;
+                     ImGui::CloseCurrentPopup();
+                 }
+                 ImGui::SameLine();
+                 const bool ok = s_snes_rename_buf[0] != '\0';
+                 ImGui::BeginDisabled(!ok);
+-                if ((ImGui::Button("OK", ImVec2(px(120), 0)) || enter) && ok) {
++                if ((ImGui::Button(ui_text("OK"), ImVec2(px(120), 0)) || enter) && ok) {
+                     launcher_binds_rename_snes_gamepad(m, p + 1,
+                                                        s_snes_rename_buf);
+                     s_snes_rename_open = false;
+@@ -5635,7 +5676,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+             }
+             if (!can_pad) ImGui::EndDisabled();
+             if (ImGui::GetTime() < s_n64_saved_until)
+-                ImGui::TextColored(col(th.accent2), "Input Profile Saved!");
++                ImGui::TextColored(col(th.accent2), ui_text("Input Profile Saved!"));
+ 
+             if (s_n64_rename_open) ImGui::OpenPopup(ui_text("Rename Gamepad"));
+             ImVec2 c3 = ImGui::GetMainViewport()->GetCenter();
+@@ -5656,7 +5697,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::SameLine();
+                 const bool ok = s_n64_rename_buf[0] != '\0';
+                 ImGui::BeginDisabled(!ok);
+-                if ((ImGui::Button("OK", ImVec2(px(120), 0)) || enter) && ok) {
++                if ((ImGui::Button(ui_text("OK"), ImVec2(px(120), 0)) || enter) && ok) {
+                     launcher_binds_rename_n64_gamepad(m, p + 1, s_n64_rename_buf);
+                     s_n64_rename_open = false;
+                     ImGui::CloseCurrentPopup();
+@@ -5709,7 +5750,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::SameLine();
+                 const bool ok = s_rename_buf[0] != '\0';
+                 ImGui::BeginDisabled(!ok);
+-                if ((ImGui::Button("OK", ImVec2(px(120), 0)) || enter) && ok) {
++                if ((ImGui::Button(ui_text("OK"), ImVec2(px(120), 0)) || enter) && ok) {
+                     launcher_binds_rename_psx_gamepad(m, p + 1, s_rename_buf);
+                     s_rename_open = false;
+                     ImGui::CloseCurrentPopup();
+@@ -5778,9 +5819,9 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+ 
+             // Invert toggles.
+             bool ix = m->s.mouse_invert_x != 0;
+-            if (ImGui::Checkbox("Invert X", &ix)) launcher_model_toggle_mouse_invert_x(m);
++            if (ImGui::Checkbox(ui_text("Invert X"), &ix)) launcher_model_toggle_mouse_invert_x(m);
+             bool iy = m->s.mouse_invert_y != 0;
+-            if (ImGui::Checkbox("Invert Y", &iy)) launcher_model_toggle_mouse_invert_y(m);
++            if (ImGui::Checkbox(ui_text("Invert Y"), &iy)) launcher_model_toggle_mouse_invert_y(m);
+ 
+             // Three rebindable mouse buttons -> an N64 action (or None). The
+             // vocabulary is the active profile's ControllerSpec.buttons[].
+@@ -5795,7 +5836,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                                         ? spec.buttons[cur].label : "None";
+                 ImGui::SetNextItemWidth(px(200));
+                 if (ImGui::BeginCombo("##mbtn", cur_label)) {
+-                    if (ImGui::Selectable("None", cur < 0))
++                    if (ImGui::Selectable(ui_text("None"), cur < 0))
+                         launcher_model_set_mouse_bind(m, i, -1);
+                     for (int b = 0; b < spec.button_count; ++b) {
+                         if (ImGui::Selectable(spec.buttons[b].label, cur == b))
+@@ -5932,13 +5973,13 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     "camera_binds", 3,
+                     ImGuiTableFlags_SizingStretchProp |
+                     ImGuiTableFlags_RowBg)) {
+-                ImGui::TableSetupColumn("Action",
++                ImGui::TableSetupColumn(ui_text("Action"),
+                                         ImGuiTableColumnFlags_WidthStretch,
+                                         1.2f);
+-                ImGui::TableSetupColumn("Keyboard",
++                ImGui::TableSetupColumn(ui_text("Keyboard"),
+                                         ImGuiTableColumnFlags_WidthStretch,
+                                         1.0f);
+-                ImGui::TableSetupColumn("Gamepad default",
++                ImGui::TableSetupColumn(ui_text("Gamepad default"),
+                                         ImGuiTableColumnFlags_WidthStretch,
+                                         1.0f);
+                 ImGui::TableHeadersRow();
+@@ -5972,11 +6013,11 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::EndTable();
+             }
+             ImGui::Spacing();
+-            if (ImGui::Button("Reset Camera Bindings"))
++            if (ImGui::Button(ui_text("Reset Camera Bindings")))
+                 launcher_binds_reset_camera(m);
+             if (m->camera_capturing)
+                 ImGui::TextColored(
+-                    col(th.warn), "Listening... (Esc cancels, Backspace unbinds)");
++                    col(th.warn), ui_text("Listening... (Esc cancels, Backspace unbinds)"));
+         } end_panel();
+     }
+ 
+@@ -6020,8 +6061,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+             // hint only has to say how to edit them.
+             if (!has_pad_src) {
+                 ImGui::SameLine();
+-                ImGui::TextColored(col(th.text_muted),
+-                    "  (click to rebind, right-click to clear; yellow = bound more than once)");
++                ImGui::TextColored(col(th.text_muted), ui_text("  (click to rebind, right-click to clear; yellow = bound more than once)"));
+             }
+             ImGui::Spacing();
+ 
+@@ -6149,10 +6189,10 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     ImGui::EndTable();
+                 }
+                 ImGui::Spacing();
+-                if (ImGui::Button("Map All Bindings"))
++                if (ImGui::Button(ui_text("Map All Bindings")))
+                     launcher_model_begin_map_all(m);
+                 ImGui::SameLine();
+-                if (ImGui::Button("Reset to Defaults"))
++                if (ImGui::Button(ui_text("Reset to Defaults")))
+                     launcher_binds_reset_player(m, m->cfg_player + 1);
+                 // Save Profile -- keyboard captures already write keybinds.ini
+                 // on every rebind, so this is the explicit commit + flush.
+@@ -6161,7 +6201,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     const float save_w = px(120.0f);
+                     const float right = ImGui::GetWindowContentRegionMax().x;
+                     ImGui::SameLine(right - save_w);
+-                    if (ImGui::Button("Save Profile", ImVec2(save_w, 0))) {
++                    if (ImGui::Button(ui_text("Save Profile"), ImVec2(save_w, 0))) {
+                         launcher_binds_save_psx_keyboard(m, p + 1);
+                         s_kb_profile_saved_until = ImGui::GetTime() + 2.5;
+                     }
+@@ -6179,7 +6219,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                         m->map_all_active ? " — Map All" : "");
+                 }
+                 if (ImGui::GetTime() < s_kb_profile_saved_until)
+-                    ImGui::TextColored(col(th.accent2), "Input Profile Saved!");
++                    ImGui::TextColored(col(th.accent2), ui_text("Input Profile Saved!"));
+             } else {
+                 float label_col_w = px(90.0f);
+                 for (int i = 0; i < LNG_PSX_PAD_BUTTON_COUNT; ++i) {
+@@ -6231,14 +6271,14 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     ImGui::EndTable();
+                 }
+                 ImGui::Spacing();
+-                if (ImGui::Button("Map All Bindings")) {
++                if (ImGui::Button(ui_text("Map All Bindings"))) {
+                     launcher_model_begin_map_all(m);
+                     if (m->capturing && m->player_pad_id[p] &&
+                         !launcher_input_gamepad_at_rest(m->player_pad_id[p]))
+                         m->map_all_wait_release = true;
+                 }
+                 ImGui::SameLine();
+-                if (ImGui::Button("Reset to Defaults"))
++                if (ImGui::Button(ui_text("Reset to Defaults")))
+                     launcher_binds_reset_player(m, m->cfg_player + 1);
+                 // Save Profile — name, choice, mappings, and deadzone for this GUID.
+                 static double s_profile_saved_until = 0.0;
+@@ -6246,7 +6286,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     const float save_w = px(120.0f);
+                     const float right = ImGui::GetWindowContentRegionMax().x;
+                     ImGui::SameLine(right - save_w);
+-                    if (ImGui::Button("Save Profile", ImVec2(save_w, 0))) {
++                    if (ImGui::Button(ui_text("Save Profile"), ImVec2(save_w, 0))) {
+                         launcher_binds_save_psx_gamepad(m, p + 1);
+                         s_profile_saved_until = ImGui::GetTime() + 2.5;
+                     }
+@@ -6268,7 +6308,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     }
+                 }
+                 if (ImGui::GetTime() < s_profile_saved_until)
+-                    ImGui::TextColored(col(th.accent2), "Input Profile Saved!");
++                    ImGui::TextColored(col(th.accent2), ui_text("Input Profile Saved!"));
+             }
+         } else {
+         // Alternate binds per input (N64's input.cfg keeps two; SNES/GBA
+@@ -6311,8 +6351,8 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+         // Heading uses accent2 so each console's title tints in ITS logo colour
+         // (N64 blue; single-accent consoles set accent2 == accent).
+         ImGui::PushStyleColor(ImGuiCol_Text, col(th.accent2));
+-        if (has_pad) ImGui::Text("INPUT BINDINGS - PLAYER %d", p + 1);
+-        else         ImGui::Text("KEYBOARD BINDINGS - PLAYER %d", p + 1);
++        if (has_pad) ImGui::Text(ui_text("INPUT BINDINGS - PLAYER %d"), p + 1);
++        else         ImGui::Text(ui_text("KEYBOARD BINDINGS - PLAYER %d"), p + 1);
+         ImGui::PopStyleColor(); ImGui::Spacing();
+ 
+         // Rows shown follow the player's ACTIVE pad mode (Genesis 3-Button hides
+@@ -6403,10 +6443,10 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                                          m->capture_btn == b
+                                                       && m->capture_slot == slot;
+                         const char* txt = cap
+-                            ? "[ press a key... ]"
++                            ? ui_text("[ press a key... ]")
+                             : (slot == 0 ? m->binds[p][b] : m->binds_alt[p][b]);
+                         if (cap) ImGui::PushStyleColor(ImGuiCol_Button, col(th.accent));
+-                        if (ImGui::Button(txt, ImVec2(chip_w, 0)))
++                        if (ImGui::Button(button_text(txt), ImVec2(chip_w, 0)))
+                             launcher_model_begin_capture_slot(m, b, slot);
+                         if (cap) ImGui::PopStyleColor();
+                         ImGui::PopID();
+@@ -6425,7 +6465,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                         : (m->pad_binds[p][b][0]
+                             ? m->pad_binds[p][b] : "(unbound)");
+                     if (cap_pad) ImGui::PushStyleColor(ImGuiCol_Button, col(th.accent));
+-                    if (ImGui::Button(cap_pad ? "[ press a button... ]" : pl, ImVec2(chip_w, 0)))
++                    if (ImGui::Button(cap_pad ? ui_text("[ press a button... ]") : button_text(pl), ImVec2(chip_w, 0)))
+                         launcher_model_begin_pad_capture(m, b);
+                     if (cap_pad) ImGui::PopStyleColor();
+                     ImGui::PopID();
+@@ -6438,7 +6478,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                     const char* key_text = settings_player_binds
+                         ? settings_key_label(m->s.player_key_bind[p][b])
+                         : m->binds[p][b];
+-                    if (ImGui::Button(cap_key ? "[ press a key... ]" : key_text, ImVec2(chip_w, 0)))
++                    if (ImGui::Button(cap_key ? ui_text("[ press a key... ]") : button_text(key_text), ImVec2(chip_w, 0)))
+                         launcher_model_begin_capture(m, b);
+                     if (cap_key) ImGui::PopStyleColor();
+                 }
+@@ -6506,16 +6546,16 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+         }
+ 
+         if (automap_running) {
+-            if (ImGui::Button("Cancel Auto Map")) {
++            if (ImGui::Button(ui_text("Cancel Auto Map"))) {
+                 s_automap_i = -1;
+                 s_automap_player = -1;
+             }
+-        } else if (ImGui::Button("Auto Map All")) {
++        } else if (ImGui::Button(ui_text("Auto Map All"))) {
+             s_automap_i = 0;
+             s_automap_player = p;
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Reset to Defaults")) {
++        if (ImGui::Button(ui_text("Reset to Defaults"))) {
+             if (settings_player_binds)
+                 launcher_model_reset_player_bindings(m, m->cfg_player);
+             else
+@@ -6542,7 +6582,7 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+                                    pad_src ? " on the controller" : "");
+             }
+         } else if (m->capturing) {
+-            ImGui::TextColored(col(th.warn), "Listening... (Esc cancels, Backspace unbinds)");
++            ImGui::TextColored(col(th.warn), ui_text("Listening... (Esc cancels, Backspace unbinds)"));
+         }
+         } // !is_psx
+     } end_panel();
+@@ -6554,16 +6594,15 @@ void draw_controller_config_view(LauncherModel* m, const LauncherTheme& th) {
+     if (m->zapper) {
+         if (begin_panel("cfg_zapper", 0)) {
+             ImGui::PushStyleColor(ImGuiCol_Text, col(th.accent));
+-            ImGui::TextUnformatted("ZAPPER (LIGHT GUN)");
++            ImGui::TextUnformatted(ui_text("ZAPPER (LIGHT GUN)"));
+             ImGui::PopStyleColor(); ImGui::Spacing();
+-            ImGui::TextColored(col(th.text_muted),
+-                "The mouse is the Zapper: move to aim, left-click to fire.");
++            ImGui::TextColored(col(th.text_muted), ui_text("The mouse is the Zapper: move to aim, left-click to fire."));
+             ImGui::Dummy(ImVec2(0, px(4)));
+             bool mouse = m->zapper_mouse;
+-            if (ImGui::Checkbox("Mouse acts as the Zapper", &mouse))
++            if (ImGui::Checkbox(ui_text("Mouse acts as the Zapper"), &mouse))
+                 launcher_model_toggle_zapper_mouse(m);
+             bool ch = m->zapper_crosshair;
+-            if (ImGui::Checkbox("Show crosshair (hides the OS cursor)", &ch))
++            if (ImGui::Checkbox(ui_text("Show crosshair (hides the OS cursor)"), &ch))
+                 launcher_model_toggle_zapper_crosshair(m);
+         } end_panel();
+     }
+@@ -6602,7 +6641,7 @@ static void draw_netplay_view(LauncherModel* m) {
+     ImGui::Combo("Your display##netplay_view", &m->s.netplay_view_index,
+                  m->netplay_view_labels, m->num_netplay_view_labels);
+     if (ImGui::IsItemHovered())
+-        ImGui::SetTooltip("Only changes your view. Other players can use a different size.");
++        ImGui::SetTooltip(ui_text("Only changes your view. Other players can use a different size."));
+     ImGui::Spacing();
+ }
+ 
+@@ -7140,7 +7179,7 @@ static bool draw_account_section(LauncherModel* m, const LauncherTheme& th) {
+         const char* uname = np->account_username ? np->account_username(np->ctx) : "";
+         char disp[128];
+         emoji_display(handle && handle[0] ? handle : "Signed in", disp, sizeof(disp));
+-        ImGui::TextColored(col(th.text_muted), "Signed in as");
++        ImGui::TextColored(col(th.text_muted), ui_text("Signed in as"));
+         ImGui::SameLine(0, px(6));
+         ImGui::TextColored(col(th.good), "%s", disp);
+         if (uname && uname[0]) {
+@@ -7149,12 +7188,12 @@ static bool draw_account_section(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::SameLine(0, px(6));
+             ImGui::TextColored(col(th.text_muted), "@%s", uname);
+         }
+-        if (ImGui::Button("Sign out", ImVec2(px(120), 0)) && np->account_sign_out) {
++        if (ImGui::Button(ui_text("Sign out"), ImVec2(px(120), 0)) && np->account_sign_out) {
+             np->account_sign_out(np->ctx);
+             m->netplay_name_error[0] = '\0';
+         }
+     } else if (st == RECOMP_LAUNCHER_ACCOUNT_WAITING) {
+-        ImGui::TextColored(col(th.accent2), "Waiting for Discord…");
++        ImGui::TextColored(col(th.accent2), ui_text("Waiting for Discord…"));
+         ImGui::PushTextWrapPos(px(360));
+         ImGui::TextColored(col(th.text_muted),
+                            "Finish signing in on the page that opened in your "
+@@ -7166,7 +7205,7 @@ static bool draw_account_section(LauncherModel* m, const LauncherTheme& th) {
+                            "Sign in with Discord so your name is yours across "
+                            "sessions. Optional — you can play as a guest.");
+         ImGui::PopTextWrapPos();
+-        if (ImGui::Button("Sign in with Discord", ImVec2(px(200), 0)) &&
++        if (ImGui::Button(ui_text("Sign in with Discord"), ImVec2(px(200), 0)) &&
+             np->account_login_begin) {
+             if (np->account_login_begin(np->ctx) != 0) {
+                 const char* e = np->account_error ? np->account_error(np->ctx) : nullptr;
+@@ -7221,7 +7260,7 @@ void draw_netplay_player_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::PopTextWrapPos();
+         }
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             /* "Do they still have no name?" must ask the EFFECTIVE name. A
+              * signed-in player's name is the account handle; s.netplay_player_name
+              * is only the guest/LAN fallback and is routinely empty for them. Asking
+@@ -7243,7 +7282,7 @@ void draw_netplay_player_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::SameLine();
+         const bool valid_name = m->netplay_name_edit[0] != '\0';
+         ImGui::BeginDisabled(!valid_name);
+-        if ((ImGui::Button("Save", ImVec2(px(120), 0)) || save) && valid_name) {
++        if ((ImGui::Button(ui_text("Save"), ImVec2(px(120), 0)) || save) && valid_name) {
+             /* Refused: keep the modal open, say so, and keep the old name --
+              * the player picks another. Nothing is sent, so a refused name
+              * never reaches a peer even for the frame it took to notice. */
+@@ -7453,8 +7492,8 @@ void draw_netplay_automatch_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::Spacing();
+         }
+         if (n == 0)
+-            ImGui::TextColored(col(th.warn), "This server has no automatch queues.");
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++            ImGui::TextColored(col(th.warn), ui_text("This server has no automatch queues."));
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             m->netplay_automatch_picker_open = false;
+             ImGui::CloseCurrentPopup();
+         }
+@@ -7502,9 +7541,9 @@ void draw_netplay_automatch_modal(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::TextColored(col(th.text_muted), "Estimated latency: ~%d ms",
+                                    f.est_rtt_ms);
+             else
+-                ImGui::TextColored(col(th.text_muted), "Estimated latency: unknown");
++                ImGui::TextColored(col(th.text_muted), ui_text("Estimated latency: unknown"));
+         } else {
+-            ImGui::TextUnformatted("An opponent is ready.");
++            ImGui::TextUnformatted(ui_text("An opponent is ready."));
+         }
+         ImGui::Spacing();
+ 
+@@ -7525,11 +7564,11 @@ void draw_netplay_automatch_modal(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::TextColored(f.accept_secs_left <= 5 ? col(th.warn) : col(th.text),
+                                    "Auto-declines in %ds", f.accept_secs_left);
+             ImGui::Spacing();
+-            if (ImGui::Button("Accept", ImVec2(px(140), px(34)))) {
++            if (ImGui::Button(ui_text("Accept"), ImVec2(px(140), px(34)))) {
+                 if (np->automatch_accept) np->automatch_accept(np->ctx, 1);
+             }
+             ImGui::SameLine();
+-            if (ImGui::Button("Decline", ImVec2(px(140), px(34)))) {
++            if (ImGui::Button(ui_text("Decline"), ImVec2(px(140), px(34)))) {
+                 if (np->automatch_accept) np->automatch_accept(np->ctx, 0);
+             }
+             /* Say the cost before it is paid. Declining is allowed; being
+@@ -7558,10 +7597,8 @@ void draw_netplay_moderation_modal(LauncherModel* m, const LauncherTheme& th) {
+ 
+     const int n = recomp_moderation_count();
+     if (n <= 0) {
+-        ImGui::TextColored(col(th.text_muted),
+-                           "Nobody is ignored or blocked.");
+-        ImGui::TextColored(col(th.text_muted),
+-                           "Right-click a player's name to add one.");
++        ImGui::TextColored(col(th.text_muted), ui_text("Nobody is ignored or blocked."));
++        ImGui::TextColored(col(th.text_muted), ui_text("Right-click a player's name to add one."));
+     } else {
+         ImGui::TextColored(col(th.text_muted),
+                            "Names are only labels -- the list follows the "
+@@ -7569,8 +7606,8 @@ void draw_netplay_moderation_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::Spacing();
+         if (ImGui::BeginTable("##mod_list", 3,
+                               ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+-            ImGui::TableSetupColumn("Player", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+-            ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed, px(90));
++            ImGui::TableSetupColumn(ui_text("Player"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
++            ImGui::TableSetupColumn(ui_text("State"), ImGuiTableColumnFlags_WidthFixed, px(90));
+             ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, px(90));
+             for (int i = 0; i < n; ++i) {
+                 char key[RECOMP_MOD_KEY_CAP], name[RECOMP_MOD_NAME_CAP];
+@@ -7587,7 +7624,7 @@ void draw_netplay_moderation_modal(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::TextColored(col(lvl == RECOMP_MOD_BLOCKED ? th.warn : th.text_muted),
+                                    "%s", lvl == RECOMP_MOD_BLOCKED ? "Blocked" : "Ignored");
+                 ImGui::TableSetColumnIndex(2);
+-                if (ImGui::Button("Remove", ImVec2(px(84), 0))) {
++                if (ImGui::Button(ui_text("Remove"), ImVec2(px(84), 0))) {
+                     recomp_moderation_set(key, name, RECOMP_MOD_NONE);
+                     ImGui::PopID();
+                     break;   /* the list shifted under us */
+@@ -7598,7 +7635,7 @@ void draw_netplay_moderation_modal(LauncherModel* m, const LauncherTheme& th) {
+         }
+     }
+     ImGui::Spacing();
+-    if (ImGui::Button("Close", ImVec2(px(120), 0))) {
++    if (ImGui::Button(ui_text("Close"), ImVec2(px(120), 0))) {
+         m->netplay_moderation_modal_open = false;
+         ImGui::CloseCurrentPopup();
+     }
+@@ -7630,14 +7667,14 @@ void draw_netplay_report_modal(LauncherModel* m, const LauncherTheme& th) {
+ 
+     char who[96];
+     emoji_display(m->netplay_report_who, who, sizeof(who));
+-    ImGui::TextColored(col(th.text_muted), "Reporting a message from");
++    ImGui::TextColored(col(th.text_muted), ui_text("Reporting a message from"));
+     ImGui::SameLine(0, px(5));
+     ImGui::TextUnformatted(who);
+     ImGui::Spacing();
+ 
+     if (m->netplay_report_reason < 0 || m->netplay_report_reason >= kReasonCount)
+         m->netplay_report_reason = 0;
+-    ImGui::TextColored(col(th.text_muted), "Reason");
++    ImGui::TextColored(col(th.text_muted), ui_text("Reason"));
+     ImGui::SetNextItemWidth(px(260));
+     if (ImGui::BeginCombo("##report_reason",
+                           kReasons[m->netplay_report_reason].label)) {
+@@ -7649,7 +7686,7 @@ void draw_netplay_report_modal(LauncherModel* m, const LauncherTheme& th) {
+     }
+ 
+     ImGui::Spacing();
+-    ImGui::TextColored(col(th.text_muted), "Anything to add (optional)");
++    ImGui::TextColored(col(th.text_muted), ui_text("Anything to add (optional)"));
+     ImGui::SetNextItemWidth(px(460));
+     ImGui::InputTextWithHint("##report_note",
+                              "What happened, in a sentence",
+@@ -7674,7 +7711,7 @@ void draw_netplay_report_modal(LauncherModel* m, const LauncherTheme& th) {
+     }
+ 
+     ImGui::Spacing();
+-    if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++    if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+         m->netplay_report_modal_open = false;
+         ImGui::CloseCurrentPopup();
+     }
+@@ -7682,7 +7719,7 @@ void draw_netplay_report_modal(LauncherModel* m, const LauncherTheme& th) {
+     const auto* np = np_cb(m);
+     const bool can_send = np && np->chat_report && m->netplay_report_mid[0];
+     ImGui::BeginDisabled(!can_send);
+-    if (ImGui::Button("Send Report", ImVec2(px(150), 0))) {
++    if (ImGui::Button(ui_text("Send Report"), ImVec2(px(150), 0))) {
+         const char* mids[1] = { m->netplay_report_mid };
+         const int rc = np->chat_report(np->ctx, mids, 1,
+                                        kReasons[m->netplay_report_reason].id,
+@@ -7731,14 +7768,14 @@ void draw_netplay_direct_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::Spacing();
+         if (m->netplay_status[0])
+             ImGui::TextColored(col(th.warn), "%s", m->netplay_status);
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             m->netplay_direct_modal_open = false;
+             ImGui::CloseCurrentPopup();
+         }
+         ImGui::SameLine();
+         const bool can_join = m->netplay_direct_ip[0] && np_valid_port(m->netplay_direct_port);
+         ImGui::BeginDisabled(!can_join);
+-        if (ImGui::Button("Join Direct", ImVec2(px(140), 0))) {
++        if (ImGui::Button(ui_text("Join Direct"), ImVec2(px(140), 0))) {
+             const auto* np = np_cb(m);
+             if (np && np->join) {
+                 char lobby_id[96];
+@@ -7785,13 +7822,13 @@ void draw_netplay_network_modal(LauncherModel* m, const LauncherTheme& th) {
+     ImGui::SetNextWindowSize(ImVec2(px(520), 0), ImGuiCond_Appearing);
+     if (ImGui::BeginPopupModal("Network Settings", nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize)) {
+-        ImGui::TextColored(col(th.text_muted), "Lobby server URL");
++        ImGui::TextColored(col(th.text_muted), ui_text("Lobby server URL"));
+         ImGui::SetNextItemWidth(px(440));
+         bool save = ImGui::InputText("##lobby_server_url", m->netplay_lobby_url,
+                                      sizeof(m->netplay_lobby_url),
+                                      ImGuiInputTextFlags_EnterReturnsTrue);
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             const auto* np = np_cb(m);
+             const char* current = np && np->default_url ? np->default_url(np->ctx) : "";
+             std::snprintf(m->netplay_lobby_url, sizeof(m->netplay_lobby_url), "%s",
+@@ -7802,7 +7839,7 @@ void draw_netplay_network_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::SameLine();
+         const bool valid_url = m->netplay_lobby_url[0] != '\0';
+         ImGui::BeginDisabled(!valid_url);
+-        if ((ImGui::Button("Save", ImVec2(px(120), 0)) || save) && valid_url) {
++        if ((ImGui::Button(ui_text("Save"), ImVec2(px(120), 0)) || save) && valid_url) {
+             const auto* np = np_cb(m);
+             if (np && np->set_lobby_url)
+                 np->set_lobby_url(np->ctx, m->netplay_lobby_url);
+@@ -7824,7 +7861,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+     ImGui::SetNextWindowSize(ImVec2(px(520), 0), ImGuiCond_Appearing);
+     if (ImGui::BeginPopupModal("Host Lobby", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+-        ImGui::TextColored(col(th.text_muted), "Lobby name");
++        ImGui::TextColored(col(th.text_muted), ui_text("Lobby name"));
+         ImGui::SetNextItemWidth(px(430));
+         ImGui::InputText("##host_lobby_name", m->netplay_host_name,
+                          sizeof(m->netplay_host_name));
+@@ -7844,7 +7881,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+                              ? np_cb_host->lobby_kind_get(np_cb_host->ctx)
+                              : 0;
+         if (link_supported) {
+-            ImGui::TextColored(col(th.text_muted), "Lobby Type");
++            ImGui::TextColored(col(th.text_muted), ui_text("Lobby Type"));
+             ImGui::SetNextItemWidth(px(220));
+             /* A link-capable title has no multitap mode: one console seats
+              * 2 players, four players means two linked consoles. So the type
+@@ -7854,11 +7891,11 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+                                          ? "PSX-Link — 2 consoles, 4 players"
+                                          : "Standard — 1 console, 2 players";
+             if (ImGui::BeginCombo("##host_lobby_kind", kind_label)) {
+-                if (ImGui::Selectable("Standard — 1 console, 2 players",
++                if (ImGui::Selectable(ui_text("Standard — 1 console, 2 players"),
+                                       lobby_kind == 0) &&
+                     np_cb_host->lobby_kind_set)
+                     np_cb_host->lobby_kind_set(np_cb_host->ctx, 0);
+-                if (ImGui::Selectable("PSX-Link — 2 consoles, 4 players",
++                if (ImGui::Selectable(ui_text("PSX-Link — 2 consoles, 4 players"),
+                                       lobby_kind == 1) &&
+                     np_cb_host->lobby_kind_set)
+                     np_cb_host->lobby_kind_set(np_cb_host->ctx, 1);
+@@ -7869,8 +7906,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+             }
+             if (lobby_kind == 1) {
+                 ImGui::SameLine();
+-                ImGui::TextColored(col(th.text_muted),
+-                                   "P1/P2 on console A, P3/P4 on console B");
++                ImGui::TextColored(col(th.text_muted), ui_text("P1/P2 on console A, P3/P4 on console B"));
+                 m->netplay_host_max_players = 4;
+             } else {
+                 m->netplay_host_max_players = 2;
+@@ -7888,7 +7924,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+                 m->netplay_lan_only && !link_supported && online_max > sync_max;
+             const bool game_locked = sync_max <= 2 || link_supported;
+             const int max_players = np_clamp_host_max_players(m);
+-            ImGui::TextColored(col(th.text_muted), "Max Players");
++            ImGui::TextColored(col(th.text_muted), ui_text("Max Players"));
+             ImGui::SetNextItemWidth(px(140));
+             ImGui::BeginDisabled(game_locked);
+             char preview[8];
+@@ -7942,7 +7978,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::Spacing();
+             bool allow_spec =
+                 np_cb_host->allow_spectators_get(np_cb_host->ctx) != 0;
+-            if (ImGui::Checkbox("Allow Spectators", &allow_spec))
++            if (ImGui::Checkbox(ui_text("Allow Spectators"), &allow_spec))
+                 (void)np_cb_host->allow_spectators_set(np_cb_host->ctx,
+                                                        allow_spec ? 1 : 0);
+             ImGui::SameLine();
+@@ -7966,13 +8002,13 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+          * Direct IP. Online still STUNs for a public endpoint; this pick is the
+          * preferred LAN advertise / bind address. */
+         if (ImGui::BeginTable("##host_lan_conn", 2, ImGuiTableFlags_SizingFixedFit)) {
+-            ImGui::TableSetupColumn("ip", ImGuiTableColumnFlags_WidthFixed, px(300));
+-            ImGui::TableSetupColumn("port", ImGuiTableColumnFlags_WidthFixed, px(120));
++            ImGui::TableSetupColumn(ui_text("ip"), ImGuiTableColumnFlags_WidthFixed, px(300));
++            ImGui::TableSetupColumn(ui_text("port"), ImGuiTableColumnFlags_WidthFixed, px(120));
+             ImGui::TableNextRow();
+             ImGui::TableSetColumnIndex(0);
+-            ImGui::TextColored(col(th.text_muted), "Advertised IP Address");
++            ImGui::TextColored(col(th.text_muted), ui_text("Advertised IP Address"));
+             ImGui::TableSetColumnIndex(1);
+-            ImGui::TextColored(col(th.text_muted), "Port");
++            ImGui::TextColored(col(th.text_muted), ui_text("Port"));
+             ImGui::TableNextRow();
+             ImGui::TableSetColumnIndex(0);
+             ImGui::SetNextItemWidth(-1.0f);
+@@ -8021,12 +8057,12 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::EndTable();
+         }
+         ImGui::Spacing();
+-        ImGui::TextColored(col(th.text_muted), "Password (optional)");
++        ImGui::TextColored(col(th.text_muted), ui_text("Password (optional)"));
+         ImGui::SetNextItemWidth(px(430));
+         ImGui::InputText("##host_password", m->netplay_host_password,
+                          sizeof(m->netplay_host_password), ImGuiInputTextFlags_Password);
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             host_create_status[0] = '\0';
+             m->netplay_host_modal_open = false;
+             ImGui::CloseCurrentPopup();
+@@ -8039,7 +8075,7 @@ void draw_netplay_host_modal(LauncherModel* m, const LauncherTheme& th) {
+             std::strcmp(m->netplay_host_ip, "Detecting...") != 0 &&
+             launcher_model_netplay_disc_ok(m);
+         ImGui::BeginDisabled(!can_create);
+-        if (ImGui::Button("Create Lobby", ImVec2(px(150), 0))) {
++        if (ImGui::Button(ui_text("Create Lobby"), ImVec2(px(150), 0))) {
+             /* A room title is refused, not masked: it sits in the lobby
+              * browser in front of everyone shopping for a game. Caught here
+              * so the host renames the room before it is created, rather than
+@@ -8174,12 +8210,12 @@ void draw_netplay_password_modal(LauncherModel* m, const LauncherTheme& th) {
+         if (m->netplay_status[0])
+             ImGui::TextColored(col(th.warn), "%s", m->netplay_status);
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             m->netplay_password_modal_open = false;
+             ImGui::CloseCurrentPopup();
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Join", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Join"), ImVec2(px(120), 0))) {
+             const auto* np = np_cb(m);
+             RecompLauncherCNetplayLobby row{};
+             if (np && np->list_get && np->join &&
+@@ -8726,27 +8762,27 @@ static void draw_lobby_seat_row(LauncherModel* m,
+         ImGui::TableSetColumnIndex(3);
+         table_row_vcenter(member_row_h, text_h);
+         if (occ && row.is_host)
+-            ImGui::TextColored(col(th.good), "Host");
++            ImGui::TextColored(col(th.good), ui_text("Host"));
+         else if (occ && view.spectator)
+             /* Not "Connected": a spectator IS connected, and the thing worth
+              * saying about it is that it cannot touch the match. */
+-            ImGui::TextColored(col(th.text_muted), "Watching");
++            ImGui::TextColored(col(th.text_muted), ui_text("Watching"));
+         else if (occ && row.mod_readiness_valid && row.mods_missing > 0)
+-            ImGui::TextColored(col(th.warn), "Needs mods");
++            ImGui::TextColored(col(th.warn), ui_text("Needs mods"));
+         else if (occ && row.mod_readiness_valid && row.mod_files_missing > 0)
+-            ImGui::TextColored(col(th.warn), "Needs files");
++            ImGui::TextColored(col(th.warn), ui_text("Needs files"));
+         else if (occ && !row.is_host && !row.ready)
+             /* Held back by its own launch gate: no verified game image. */
+-            ImGui::TextColored(col(th.warn), "Not ready");
++            ImGui::TextColored(col(th.warn), ui_text("Not ready"));
+         else if (occ)
+-            ImGui::TextColored(col(th.good), "Connected");
++            ImGui::TextColored(col(th.good), ui_text("Connected"));
+         else
+-            ImGui::TextColored(col(th.text_muted), "Waiting");
++            ImGui::TextColored(col(th.text_muted), ui_text("Waiting"));
+         if (occ && !row.is_host && !view.spectator && !row.ready &&
+             !(row.mod_readiness_valid &&
+               (row.mods_missing > 0 || row.mod_files_missing > 0)) &&
+             ImGui::IsItemHovered())
+-            ImGui::SetTooltip("Has not selected their copy of the game yet.");
++            ImGui::SetTooltip(ui_text("Has not selected their copy of the game yet."));
+         else if (occ && !row.is_host && !view.spectator &&
+             row.mod_readiness_valid && row.mods_missing == 0 &&
+             row.mod_files_missing > 0 && ImGui::IsItemHovered())
+@@ -8797,7 +8833,7 @@ static void draw_lobby_seat_row(LauncherModel* m,
+                 if (pressed)
+                     (void)np->kick_member(np->ctx, wire);
+                 if (ImGui::IsItemHovered())
+-                    ImGui::SetTooltip("Kick player");
++                    ImGui::SetTooltip(ui_text("Kick player"));
+             } else {
+                 /* Non-interactive placeholder — BeginDisabled still animates. */
+                 ImGui::Dummy(ImVec2(kick_btn, kick_btn));
+@@ -8813,16 +8849,16 @@ static void draw_lobby_seat_row(LauncherModel* m,
+                             ImGui::GetColorU32(ImGuiCol_TextDisabled), boot);
+                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                     if (!is_host)
+-                        ImGui::SetTooltip("Only the host can kick");
++                        ImGui::SetTooltip(ui_text("Only the host can kick"));
+                     else if (!occ)
+                         ImGui::SetTooltip(view.spectator ? "Open seat"
+                                                          : "Open slot");
+                     else if (row.is_host)
+-                        ImGui::SetTooltip("Cannot kick the host");
++                        ImGui::SetTooltip(ui_text("Cannot kick the host"));
+                     else if (!np->kick_member)
+-                        ImGui::SetTooltip("Kick unavailable");
++                        ImGui::SetTooltip(ui_text("Kick unavailable"));
+                     else
+-                        ImGui::SetTooltip("Open slot");
++                        ImGui::SetTooltip(ui_text("Open slot"));
+                 }
+             }
+         }
+@@ -9070,7 +9106,7 @@ static void np_lobby_leave(LauncherModel* m,
+  * signal. Stacked, not tabular: this sits in a side column. */
+ static void draw_lobby_room_panel(LauncherModel* m, const LauncherTheme& th,
+                                   const RecompLauncherCNetplayCallbacks* np) {
+-    ImGui::TextColored(col(th.accent2), "ROOM");
++    ImGui::TextColored(col(th.accent2), ui_text("ROOM"));
+     ImGui::Spacing();
+     const bool show_lan_endpoint = m->netplay_local_room;
+     if (show_lan_endpoint) {
+@@ -9088,23 +9124,23 @@ static void draw_lobby_room_panel(LauncherModel* m, const LauncherTheme& th,
+         const float w = ImGui::GetContentRegionAvail().x;
+         const float port_w = px(96);
+         const float gap = px(8);
+-        ImGui::TextColored(col(th.text_muted), "LAN IP Address");
++        ImGui::TextColored(col(th.text_muted), ui_text("LAN IP Address"));
+         ImGui::SameLine(w - port_w);
+-        ImGui::TextColored(col(th.text_muted), "Port");
++        ImGui::TextColored(col(th.text_muted), ui_text("Port"));
+         ImGui::SetNextItemWidth(w - port_w - gap);
+         np_copyable_readonly_input("##lobby_ip", room_ip, sizeof(room_ip), th);
+         ImGui::SameLine(0, gap);
+         ImGui::SetNextItemWidth(port_w);
+         np_copyable_readonly_input("##lobby_port", room_port, sizeof(room_port), th);
+         ImGui::Spacing();
+-        ImGui::TextColored(col(th.text_muted), "Public IP Address");
++        ImGui::TextColored(col(th.text_muted), ui_text("Public IP Address"));
+         {
+             const float help_sz = ImGui::GetFrameHeight();
+             ImGui::SetNextItemWidth(w - help_sz - gap);
+             np_copyable_readonly_input("##lobby_public_ip", m->netplay_public_ip,
+                                        sizeof(m->netplay_public_ip), th);
+             ImGui::SameLine(0, gap);
+-            if (ImGui::Button("?", ImVec2(help_sz, help_sz))) {
++            if (ImGui::Button(ui_text("?"), ImVec2(help_sz, help_sz))) {
+                 /* tooltip on hover only */
+             }
+             if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+@@ -9131,7 +9167,7 @@ static void draw_lobby_room_panel(LauncherModel* m, const LauncherTheme& th,
+         if (!url || !url[0]) url = m->netplay_lobby_url;
+         std::snprintf(lobby_server, sizeof(lobby_server), "%s",
+                       (url && url[0]) ? url : "lobby server");
+-        ImGui::TextColored(col(th.text_muted), "Lobby Server");
++        ImGui::TextColored(col(th.text_muted), ui_text("Lobby Server"));
+         ImGui::SetNextItemWidth(-1.0f);
+         np_copyable_readonly_input("##lobby_server", lobby_server,
+                                    sizeof(lobby_server), th);
+@@ -9144,7 +9180,7 @@ static void draw_lobby_room_panel(LauncherModel* m, const LauncherTheme& th,
+                              sizeof(m->netplay_relay_status)) &&
+             m->netplay_relay_status[0]) {
+             ImGui::Spacing();
+-            ImGui::TextColored(col(th.text_muted), "Match Relay");
++            ImGui::TextColored(col(th.text_muted), ui_text("Match Relay"));
+             ImGui::PushTextWrapPos(0.0f);
+             ImGui::TextUnformatted(m->netplay_relay_status);
+             ImGui::PopTextWrapPos();
+@@ -9160,10 +9196,10 @@ static void draw_lobby_room_panel(LauncherModel* m, const LauncherTheme& th,
+ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+                                       const RecompLauncherCNetplayCallbacks* np,
+                                       bool is_host) {
+-    ImGui::TextColored(col(th.accent2), "MATCH SETTINGS");
++    ImGui::TextColored(col(th.accent2), ui_text("MATCH SETTINGS"));
+     if (!is_host) {
+         ImGui::SameLine();
+-        ImGui::TextColored(col(th.text_muted), " (set by the host)");
++        ImGui::TextColored(col(th.text_muted), ui_text(" (set by the host)"));
+     }
+     ImGui::Spacing();
+     if (!is_host || !g_lobby_settings_synced) {
+@@ -9215,9 +9251,9 @@ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+         /* Rollback is the match mode and is no longer a lobby toggle: it is
+          * whatever the backend reports (default on). Delay-sync stays
+          * reachable through the backend's env override for debugging. */
+-        ImGui::TextUnformatted("Manual Input Delay");
++        ImGui::TextUnformatted(ui_text("Manual Input Delay"));
+         ImGui::SameLine();
+-        ImGui::TextColored(col(th.text_muted), "(frames)");
++        ImGui::TextColored(col(th.text_muted), ui_text("(frames)"));
+         {
+             bool manual = m->netplay_manual_input_delay;
+             if (ImGui::Checkbox("##manual_input_delay", &manual))
+@@ -9254,7 +9290,7 @@ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+             ImGui::SameLine();
+             {
+                 const float help_sz = ImGui::GetFrameHeight();
+-                if (ImGui::Button("?##input_delay_help", ImVec2(help_sz, help_sz))) {
++                if (ImGui::Button(ui_text("?##input_delay_help"), ImVec2(help_sz, help_sz))) {
+                 }
+                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+                     ImGui::BeginTooltip();
+@@ -9279,9 +9315,9 @@ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+             ImGui::EndDisabled();
+         }
+         ImGui::Spacing();
+-        ImGui::TextUnformatted("Manual Input Prediction");
++        ImGui::TextUnformatted(ui_text("Manual Input Prediction"));
+         ImGui::SameLine();
+-        ImGui::TextColored(col(th.text_muted), "(frames)");
++        ImGui::TextColored(col(th.text_muted), ui_text("(frames)"));
+         {
+             const bool rb_on = m->netplay_rollback;
+             ImGui::BeginDisabled(!rb_on);
+@@ -9321,7 +9357,7 @@ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+             ImGui::SameLine();
+             {
+                 const float help_sz = ImGui::GetFrameHeight();
+-                if (ImGui::Button("?##input_prediction_help",
++                if (ImGui::Button(ui_text("?##input_prediction_help"),
+                                  ImVec2(help_sz, help_sz))) {
+                 }
+                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+@@ -9348,7 +9384,7 @@ static void draw_lobby_match_settings(LauncherModel* m, const LauncherTheme& th,
+             bool analog_hack = m->s.multitap_analog != 0;
+             if (np->multitap_analog_get)
+                 analog_hack = np->multitap_analog_get(np->ctx) != 0;
+-            if (ImGui::Checkbox("Multitap analog (hack)", &analog_hack)) {
++            if (ImGui::Checkbox(ui_text("Multitap analog (hack)"), &analog_hack)) {
+                 m->s.multitap_analog = analog_hack ? 1 : 0;
+                 if (np->multitap_analog_set)
+                     (void)np->multitap_analog_set(np->ctx, analog_hack ? 1 : 0);
+@@ -9429,7 +9465,7 @@ static void draw_lobby_game_rom_popup(LauncherModel* m, const LauncherTheme& th,
+     if (ImGui::Button(label, ImVec2(px(180), 0)))
+         lobby_pick_game_rom(m);
+     ImGui::SameLine();
+-    if (ImGui::Button("Later", ImVec2(px(120), 0))) {
++    if (ImGui::Button(ui_text("Later"), ImVec2(px(120), 0))) {
+         s_lobby_rom_dismissed = true;
+         ImGui::CloseCurrentPopup();
+     }
+@@ -9501,7 +9537,7 @@ static void draw_lobby_mod_files_popup(LauncherModel* m, const LauncherTheme& th
+     }
+     ImGui::Separator();
+     ImGui::Spacing();
+-    if (ImGui::Button("Later", ImVec2(px(120), 0))) {
++    if (ImGui::Button(ui_text("Later"), ImVec2(px(120), 0))) {
+         s_lobby_files_open = false;
+         ImGui::CloseCurrentPopup();
+     }
+@@ -9589,7 +9625,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+ 
+                     ImGui::PushID(i);
+                     if (lm.installed) {
+-                        ImGui::TextColored(col(th.good), "OK");
++                        ImGui::TextColored(col(th.good), ui_text("OK"));
+                     } else {
+                         ImGui::TextColored(col(th.warn), "--");
+                     }
+@@ -9757,7 +9793,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+                         ImGui::ProgressBar(progress / 100.0f,
+                                            ImVec2(px(320), 0));
+                         ImGui::SameLine();
+-                        if (ImGui::Button("Cancel", ImVec2(px(100), 0)) &&
++                        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), 0)) &&
+                             np->mod_xfer_cancel) {
+                             np->mod_xfer_cancel(np->ctx);
+                         }
+@@ -9795,8 +9831,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+                 }
+             } else if (plan_n > 0) {
+                 ImGui::Spacing();
+-                ImGui::TextColored(col(th.good),
+-                                   "You have every mod this lobby needs.");
++                ImGui::TextColored(col(th.good), ui_text("You have every mod this lobby needs."));
+             }
+         }
+ 
+@@ -9876,7 +9911,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+             ImGui::PopTextWrapPos();
+         }
+         ImGui::Spacing();
+-        if (ImGui::Button("Close", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Close"), ImVec2(px(120), 0))) {
+             m->netplay_lobby_mods_open = false;
+             ImGui::CloseCurrentPopup();
+         }
+@@ -9889,7 +9924,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+                                   const RecompLauncherCNetplayCallbacks* np,
+                                   const LobbySnapshot& s) {
+     if (!m->mods) return;
+-    ImGui::TextColored(col(th.accent2), "MODS");
++    ImGui::TextColored(col(th.accent2), ui_text("MODS"));
+     ImGui::Spacing();
+     /* Summarize the plan every peer will run (host-authoritative). */
+     const auto* lmods = m->mods;
+@@ -9905,7 +9940,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+         ++enabled_n;
+     }
+     if (enabled_n == 0)
+-        ImGui::TextColored(col(th.text_muted), "Vanilla match.");
++        ImGui::TextColored(col(th.text_muted), ui_text("Vanilla match."));
+     else if (enabled_n == 1)
+         ImGui::TextColored(col(th.accent2), "%s", first_name);
+     else
+@@ -9927,8 +9962,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+         ImGui::Spacing();
+         ImGui::PushTextWrapPos(0.0f);
+         if (lobby_mod_n <= 0) {
+-            ImGui::TextColored(col(th.text_muted),
+-                               "No mods required — vanilla match.");
++            ImGui::TextColored(col(th.text_muted), ui_text("No mods required — vanilla match."));
+         } else if (s.peers_not_ready == 0 && s.peers_missing_files == 0 &&
+                    s.local_missing_files == 0) {
+             ImGui::TextColored(col(th.good),
+@@ -9957,7 +9991,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+                                    "You need to select: %s. These mods use "
+                                    "files from your own copy of those games.",
+                                    s.local_missing_labels);
+-                if (ImGui::Button("Select files…"))
++                if (ImGui::Button(ui_text("Select files…")))
+                     s_lobby_files_open = true;
+             }
+         }
+@@ -9975,7 +10009,7 @@ static void draw_lobby_mods_popup(LauncherModel* m, const LauncherTheme& th,
+ static void draw_lobby_seats(LauncherModel* m, const LauncherTheme& th,
+                              const RecompLauncherCNetplayCallbacks* np,
+                              LobbySnapshot& s) {
+-    ImGui::TextColored(col(th.accent2), "PLAYERS");
++    ImGui::TextColored(col(th.accent2), ui_text("PLAYERS"));
+     ImGui::SameLine();
+     ImGui::TextColored(col(th.text_muted), "  %d / %d seated",
+                        s.seated_players, s.max_slots);
+@@ -10001,12 +10035,12 @@ static void draw_lobby_seats(LauncherModel* m, const LauncherTheme& th,
+                               ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH |
+                               ImGuiTableFlags_SizingStretchProp)) {
+             ImGui::TableSetupColumn("##move", ImGuiTableColumnFlags_WidthFixed, px(32));
+-            ImGui::TableSetupColumn("Slot", ImGuiTableColumnFlags_WidthFixed, px(40));
++            ImGui::TableSetupColumn(ui_text("Slot"), ImGuiTableColumnFlags_WidthFixed, px(40));
+             ImGui::TableSetupColumn(views[vi].spectator ? "Spectator" : "Player",
+                                     ImGuiTableColumnFlags_WidthStretch);
+-            ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, px(100));
+-            ImGui::TableSetupColumn("Latency", ImGuiTableColumnFlags_WidthFixed, px(72));
+-            ImGui::TableSetupColumn("Kick", ImGuiTableColumnFlags_WidthFixed, px(56));
++            ImGui::TableSetupColumn(ui_text("Status"), ImGuiTableColumnFlags_WidthFixed, px(100));
++            ImGui::TableSetupColumn(ui_text("Latency"), ImGuiTableColumnFlags_WidthFixed, px(72));
++            ImGui::TableSetupColumn(ui_text("Kick"), ImGuiTableColumnFlags_WidthFixed, px(56));
+             ImGui::TableHeadersRow();
+             for (int pos = lo; pos < hi; ++pos)
+                 draw_lobby_seat_row(m, th, np, views[vi], pos, views, nviews,
+@@ -10018,10 +10052,9 @@ static void draw_lobby_seats(LauncherModel* m, const LauncherTheme& th,
+         /* PSX-Link: two consoles over the serial cable. The host can drag
+          * players between the tables; seats 0/1 race on console A, 2/3 on
+          * console B. Slot 0 (host / sim authority) stays on console A. */
+-        ImGui::TextColored(col(th.accent), "PSX-Link lobby");
++        ImGui::TextColored(col(th.accent), ui_text("PSX-Link lobby"));
+         ImGui::SameLine();
+-        ImGui::TextColored(col(th.text_muted),
+-                           " — two linked consoles, 2 players each");
++        ImGui::TextColored(col(th.text_muted), ui_text(" — two linked consoles, 2 players each"));
+         seat_table("lobby_players_a", "Console A — Players 1 & 2", player_view,
+                    0, 2);
+         ImGui::Spacing();
+@@ -10138,10 +10171,9 @@ static void draw_lobby_seats(LauncherModel* m, const LauncherTheme& th,
+                                "Waiting for the other player to accept the seat "
+                                "swap…");
+         } else if (st == -1) {
+-            ImGui::TextColored(col(th.warn),
+-                               "That player kept their seat.");
++            ImGui::TextColored(col(th.warn), ui_text("That player kept their seat."));
+             ImGui::SameLine();
+-            if (ImGui::SmallButton("OK##swapres") && np->seat_swap_clear)
++            if (ImGui::SmallButton(ui_text("OK##swapres")) && np->seat_swap_clear)
+                 np->seat_swap_clear(np->ctx);
+         } else if (st == 2) {
+             if (np->seat_swap_clear) np->seat_swap_clear(np->ctx);
+@@ -10307,11 +10339,10 @@ static void draw_lobby_chat(LauncherModel* m, const LauncherTheme& th,
+          * players to look at the wrong machine -- on a title that simply does
+          * not implement chat it appeared for every lobby, including one this
+          * player was hosting themselves. */
+-        ImGui::TextColored(col(th.accent2), "CHAT");
++        ImGui::TextColored(col(th.accent2), ui_text("CHAT"));
+         ImGui::Spacing();
+         ImGui::PushTextWrapPos(0.0f);
+-        ImGui::TextColored(col(th.text_muted),
+-                           "This build does not have lobby chat.");
++        ImGui::TextColored(col(th.text_muted), ui_text("This build does not have lobby chat."));
+         ImGui::PopTextWrapPos();
+         return;
+     }
+@@ -10393,7 +10424,7 @@ void draw_lobby(LauncherModel* m, const LauncherTheme& th) {
+     if (!np_lobby_seated(m, np)) {
+         /* The frame flips the view on its next pass; say why this is blank
+          * for the frame in between rather than drawing a stale room. */
+-        ImGui::TextColored(col(th.text_muted), "Leaving lobby…");
++        ImGui::TextColored(col(th.text_muted), ui_text("Leaving lobby…"));
+         return;
+     }
+ 
+@@ -10460,13 +10491,13 @@ void draw_lobby(LauncherModel* m, const LauncherTheme& th) {
+                                        from_pos + 1);
+                 }
+                 ImGui::Spacing();
+-                if (ImGui::Button("Swap", ImVec2(px(120), 0))) {
++                if (ImGui::Button(ui_text("Swap"), ImVec2(px(120), 0))) {
+                     if (np->seat_swap_respond)
+                         (void)np->seat_swap_respond(np->ctx, 1);
+                     ImGui::CloseCurrentPopup();
+                 }
+                 ImGui::SameLine();
+-                if (ImGui::Button("Keep my seat", ImVec2(px(140), 0))) {
++                if (ImGui::Button(ui_text("Keep my seat"), ImVec2(px(140), 0))) {
+                     if (np->seat_swap_respond)
+                         (void)np->seat_swap_respond(np->ctx, 0);
+                     s_swap_decline_until = ImGui::GetTime() + k_swap_decline_s;
+@@ -10593,7 +10624,7 @@ static void draw_lobby_footer(LauncherModel* m, const LauncherTheme& th,
+         ImGui::SetCursorScreenPos(ImVec2(
+             origin.x + fullw - play_w,
+             cta_y + (play_h - ImGui::GetTextLineHeight()) * 0.5f));
+-        ImGui::TextColored(col(th.text_muted), "Waiting for the host to start…");
++        ImGui::TextColored(col(th.text_muted), ui_text("Waiting for the host to start…"));
+     }
+     (void)th;
+ }
+@@ -10654,14 +10685,14 @@ static void draw_netplay_online_panel(LauncherModel* m, const LauncherTheme& th,
+                                       const RecompLauncherCNetplayCallbacks* np) {
+     (void)m;
+     const int n = np->online_count(np->ctx);
+-    ImGui::TextColored(col(th.accent2), "PLAYERS ONLINE");
++    ImGui::TextColored(col(th.accent2), ui_text("PLAYERS ONLINE"));
+     ImGui::SameLine();
+     ImGui::TextColored(col(th.text_muted), "%d", n);
+     if (ImGui::IsItemHovered())
+-        ImGui::SetTooltip("Players on the lobby server for this game.");
++        ImGui::SetTooltip(ui_text("Players on the lobby server for this game."));
+     ImGui::Spacing();
+     if (n <= 0) {
+-        ImGui::TextColored(col(th.text_muted), "Nobody else is online for this game.");
++        ImGui::TextColored(col(th.text_muted), ui_text("Nobody else is online for this game."));
+         return;
+     }
+     const float row_h = px(26);
+@@ -10669,8 +10700,8 @@ static void draw_netplay_online_panel(LauncherModel* m, const LauncherTheme& th,
+     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(px(8), px(3)));
+     if (ImGui::BeginTable("netplay_online_table", 2,
+                           ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp)) {
+-        ImGui::TableSetupColumn("Player", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+-        ImGui::TableSetupColumn("Where", ImGuiTableColumnFlags_WidthFixed, px(72));
++        ImGui::TableSetupColumn(ui_text("Player"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
++        ImGui::TableSetupColumn(ui_text("Where"), ImGuiTableColumnFlags_WidthFixed, px(72));
+         for (int i = 0; i < n; ++i) {
+             RecompLauncherCNetplayOnlinePlayer p{};
+             if (!np->online_get(np->ctx, i, &p)) continue;
+@@ -10688,7 +10719,7 @@ static void draw_netplay_online_panel(LauncherModel* m, const LauncherTheme& th,
+             if (p.is_local) {
+                 ImGui::TextColored(col(th.accent2), "%s", disp);
+                 ImGui::SameLine(0, px(4));
+-                ImGui::TextColored(col(th.text_muted), "(you)");
++                ImGui::TextColored(col(th.text_muted), ui_text("(you)"));
+             } else {
+                 ImGui::TextUnformatted(disp);
+                 /* Right-click the NAME, which is the thing a player points at
+@@ -10696,7 +10727,7 @@ static void draw_netplay_online_panel(LauncherModel* m, const LauncherTheme& th,
+                 np_player_menu(m, th, p.account, p.display_name);
+                 if (recomp_moderation_is_ignored(p.account)) {
+                     ImGui::SameLine(0, px(4));
+-                    ImGui::TextColored(col(th.text_muted), "(ignored)");
++                    ImGui::TextColored(col(th.text_muted), ui_text("(ignored)"));
+                 }
+             }
+             ImGui::TableSetColumnIndex(1);
+@@ -10712,7 +10743,7 @@ static void draw_netplay_online_panel(LauncherModel* m, const LauncherTheme& th,
+                     ImGui::SetTooltip("%s", where);
+                 }
+             } else {
+-                ImGui::TextColored(col(th.text_muted), "Browsing");
++                ImGui::TextColored(col(th.text_muted), ui_text("Browsing"));
+             }
+             ImGui::PopID();
+         }
+@@ -10845,7 +10876,7 @@ void draw_netplay_mode_page(LauncherModel* m, const LauncherTheme& th) {
+     const float avail_w = ImGui::GetContentRegionAvail().x;
+     const float card_w = avail_w > px(900) ? px(420) : (avail_w - px(30)) * 0.5f;
+ 
+-    ImGui::TextColored(col(th.accent2), "NETPLAY");
++    ImGui::TextColored(col(th.accent2), ui_text("NETPLAY"));
+     ImGui::Spacing();
+     ImGui::PushTextWrapPos(avail_w > px(760) ? px(760) : avail_w);
+     ImGui::TextColored(col(th.text_muted),
+@@ -10923,7 +10954,7 @@ void draw_netplay_mode_page(LauncherModel* m, const LauncherTheme& th) {
+         const char* h = npa->account_handle ? npa->account_handle(npa->ctx) : "";
+         char disp[128];
+         emoji_display(h && h[0] ? h : "", disp, sizeof(disp));
+-        ImGui::TextColored(col(th.text_muted), "Signed in as");
++        ImGui::TextColored(col(th.text_muted), ui_text("Signed in as"));
+         ImGui::SameLine(0, px(6));
+         ImGui::TextColored(col(th.good), "%s", disp);
+     } else if (awaiting) {
+@@ -10963,7 +10994,7 @@ void draw_netplay_signin_page(LauncherModel* m, const LauncherTheme& th) {
+         return;
+     }
+ 
+-    ImGui::TextColored(col(th.accent2), "SIGN IN");
++    ImGui::TextColored(col(th.accent2), ui_text("SIGN IN"));
+     ImGui::Spacing();
+     ImGui::PushTextWrapPos(wrap);
+     ImGui::TextColored(col(th.text),
+@@ -10986,7 +11017,7 @@ void draw_netplay_signin_page(LauncherModel* m, const LauncherTheme& th) {
+         if (s_signin_waiting_since <= 0.0) s_signin_waiting_since = now;
+         const bool stalled = now - s_signin_waiting_since > 10.0;
+ 
+-        ImGui::TextColored(col(th.accent2), "Waiting for Discord…");
++        ImGui::TextColored(col(th.accent2), ui_text("Waiting for Discord…"));
+         ImGui::PushTextWrapPos(wrap);
+         ImGui::TextColored(col(th.text_muted),
+                            "Finish signing in on the page that opened in your "
+@@ -11000,7 +11031,7 @@ void draw_netplay_signin_page(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::PopTextWrapPos();
+         if (stalled) {
+             ImGui::Spacing();
+-            if (ImGui::Button("Retry Discord Sign In", ImVec2(px(240), px(36))) &&
++            if (ImGui::Button(ui_text("Retry Discord Sign In"), ImVec2(px(240), px(36))) &&
+                 np && np->account_login_begin) {
+                 s_signin_waiting_since = now; /* the new attempt gets its own clock */
+                 np->account_login_begin(np->ctx);
+@@ -11009,7 +11040,7 @@ void draw_netplay_signin_page(LauncherModel* m, const LauncherTheme& th) {
+     } else {
+         /* Not waiting: reset the clock so the next attempt starts fresh. */
+         s_signin_waiting_since = 0.0;
+-        if (ImGui::Button("Sign in with Discord", ImVec2(px(240), px(40))) &&
++        if (ImGui::Button(ui_text("Sign in with Discord"), ImVec2(px(240), px(40))) &&
+             np && np->account_login_begin) {
+             np->account_login_begin(np->ctx);
+         }
+@@ -11029,7 +11060,7 @@ void draw_netplay_signin_page(LauncherModel* m, const LauncherTheme& th) {
+      * offers sign-in at all -- a server with no Discord configured never
+      * reaches this page, because the chooser sends it straight through. Back
+      * is the way out, and it leads to LAN, which needs no account. */
+-    if (ImGui::Button("Back", ImVec2(px(120), px(34))))
++    if (ImGui::Button(ui_text("Back"), ImVec2(px(120), px(34))))
+         launcher_model_set_view(m, LNG_VIEW_NETPLAY_MODE);
+ }
+ 
+@@ -11102,7 +11133,7 @@ void draw_netplay(LauncherModel* m, const LauncherTheme& th) {
+                             : 0.0f;
+ 
+     begin_container("netplay_lobbies", ImVec2(list_w, top_h), ImGuiChildFlags_None);
+-    ImGui::TextColored(col(th.accent2), "LOBBIES");
++    ImGui::TextColored(col(th.accent2), ui_text("LOBBIES"));
+     if (m->netplay_status[0])
+         ImGui::TextColored(col(th.warn), "%s", m->netplay_status);
+     ImGui::Spacing();
+@@ -11131,17 +11162,17 @@ void draw_netplay(LauncherModel* m, const LauncherTheme& th) {
+                           ImGuiTableFlags_SizingStretchProp)) {
+         /* Lobby stretches; the counts, latency and Join stay fixed. The game
+          * is implied -- the list is already filtered to this title. */
+-        ImGui::TableSetupColumn("Lobby", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+-        ImGui::TableSetupColumn("Players", ImGuiTableColumnFlags_WidthFixed, px(64));
+-        ImGui::TableSetupColumn("Spectators", ImGuiTableColumnFlags_WidthFixed, px(82));
+-        ImGui::TableSetupColumn("Latency", ImGuiTableColumnFlags_WidthFixed, px(64));
+-        ImGui::TableSetupColumn("Join", ImGuiTableColumnFlags_WidthFixed, px(80));
++        ImGui::TableSetupColumn(ui_text("Lobby"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
++        ImGui::TableSetupColumn(ui_text("Players"), ImGuiTableColumnFlags_WidthFixed, px(64));
++        ImGui::TableSetupColumn(ui_text("Spectators"), ImGuiTableColumnFlags_WidthFixed, px(82));
++        ImGui::TableSetupColumn(ui_text("Latency"), ImGuiTableColumnFlags_WidthFixed, px(64));
++        ImGui::TableSetupColumn(ui_text("Join"), ImGuiTableColumnFlags_WidthFixed, px(80));
+         ImGui::TableHeadersRow();
+         if (rows <= 0) {
+             ImGui::TableNextRow(ImGuiTableRowFlags_None, lobby_row_h);
+             ImGui::TableSetColumnIndex(0);
+             table_row_vcenter(lobby_row_h, text_h);
+-            ImGui::Text("No lobbies yet - host one.");
++            ImGui::Text(ui_text("No lobbies yet - host one."));
+             for (int c = 1; c < 5; ++c) {
+                 ImGui::TableSetColumnIndex(c);
+                 ImGui::TextUnformatted("");
+@@ -11187,7 +11218,7 @@ void draw_netplay(LauncherModel* m, const LauncherTheme& th) {
+             if (row.allow_spectators && row.max_spectators > 0)
+                 ImGui::Text("%d/%d", row.spectator_count, row.max_spectators);
+             else
+-                ImGui::TextColored(col(th.text_muted), "No");
++                ImGui::TextColored(col(th.text_muted), ui_text("No"));
+             ImGui::TableSetColumnIndex(3);
+             table_row_vcenter(lobby_row_h, text_h);
+             if (row.latency_ms >= 0 && row.latency_is_estimate)
+@@ -11212,7 +11243,7 @@ void draw_netplay(LauncherModel* m, const LauncherTheme& th) {
+                                     ImVec2(ImGui::GetStyle().FramePadding.x,
+                                            (join_btn_h - text_h) * 0.5f));
+                 ImGui::BeginDisabled(!launcher_model_netplay_disc_ok(m));
+-                if (ImGui::Button("Join", ImVec2(join_btn_w, join_btn_h))) {
++                if (ImGui::Button(ui_text("Join"), ImVec2(join_btn_w, join_btn_h))) {
+                     if (!launcher_model_netplay_disc_ok(m)) {
+                         std::snprintf(m->netplay_status, sizeof(m->netplay_status),
+                                       "%s",
+@@ -11380,7 +11411,7 @@ static void draw_linkified_mod_author(
+     if (!author_text || !author_text[0]) return;
+     const std::string author(author_text);
+     size_t cursor = 0;
+-    ImGui::TextColored(col(th.text_muted), "by: ");
++    ImGui::TextColored(col(th.text_muted), ui_text("by: "));
+     ImGui::SameLine(0, 0);
+     while (cursor < author.size()) {
+         size_t next = std::string::npos;
+@@ -11566,7 +11597,7 @@ static void draw_mod_packages(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::TextColored(col(th.warn), "%s", package.status);
+             ImGui::PopID();
+         }
+-        if (!visible) ImGui::TextColored(col(th.text_muted), "No matching packages.");
++        if (!visible) ImGui::TextColored(col(th.text_muted), ui_text("No matching packages."));
+         /* Same rule as the feature list: the selection indexes every package,
+          * including one that only carries hidden features. */
+         if (!selected_listed && first_listed >= 0)
+@@ -11588,7 +11619,7 @@ static void draw_mod_packages(LauncherModel* m, const LauncherTheme& th) {
+                     package.author_link_count, th);
+             if (package.description[0]) ImGui::TextWrapped("%s", package.description);
+             if (package.source_url[0]) {
+-                ImGui::TextColored(col(th.text_muted), "Source: ");
++                ImGui::TextColored(col(th.text_muted), ui_text("Source: "));
+                 ImGui::SameLine(0, 0);
+                 ImGui::TextLinkOpenURL(
+                     package.source_name[0] ? package.source_name : "Project page",
+@@ -11628,12 +11659,12 @@ static void draw_mod_packages(LauncherModel* m, const LauncherTheme& th) {
+                         ImGui::EndCombo();
+                     }
+                     if (ImGui::IsItemHovered())
+-                        ImGui::SetTooltip("Select an installed version (rollback)");
++                        ImGui::SetTooltip(ui_text("Select an installed version (rollback)"));
+                 }
+             }
+             if (package.removable) {
+                 ImGui::SameLine();
+-                if (ImGui::Button("Remove")) ImGui::OpenPopup("Remove mod package?");
++                if (ImGui::Button(ui_text("Remove"))) ImGui::OpenPopup("Remove mod package?");
+                 if (ImGui::BeginPopupModal("Remove mod package?", nullptr,
+                                            ImGuiWindowFlags_AlwaysAutoResize)) {
+                     ImGui::TextWrapped("Remove %s %s from this installation?",
+@@ -11641,7 +11672,7 @@ static void draw_mod_packages(LauncherModel* m, const LauncherTheme& th) {
+         if (ImGui::Button(ui_text("Cancel"), ImVec2(px(110), 0)))
+                         ImGui::CloseCurrentPopup();
+                     ImGui::SameLine();
+-                    if (ImGui::Button("Remove", ImVec2(px(110), 0))) {
++                    if (ImGui::Button(ui_text("Remove"), ImVec2(px(110), 0))) {
+                         if (!mods->remove_package ||
+                             !mods->remove_package(mods->ctx, package.id, package.version))
+                             mod_note_error(m);
+@@ -11730,8 +11761,7 @@ static void draw_mod_packages(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::PopID();
+             }
+         } else {
+-            ImGui::TextColored(col(th.text_muted),
+-                               "Install or select a package to configure it.");
++            ImGui::TextColored(col(th.text_muted), ui_text("Install or select a package to configure it."));
+         }
+     }
+     ImGui::EndChild();
+@@ -11849,7 +11879,7 @@ static void draw_mod_feature_diagnostics(
+         mods->ctx, feature.package_id, feature.id);
+     if (count <= 0) return;
+     ImGui::Spacing();
+-    ImGui::TextColored(col(th.accent), "Validation");
++    ImGui::TextColored(col(th.accent), ui_text("Validation"));
+     ImGui::Separator();
+     for (int index = 0; index < count; ++index) {
+         RecompLauncherCModDiagnostic diagnostic{};
+@@ -11996,11 +12026,11 @@ static void draw_mod_features(LauncherModel* m, const LauncherTheme& th) {
+     char install_label[96];
+     char archive_pattern[64];
+     std::snprintf(install_label, sizeof(install_label),
+-                  "Install %s", archive_extension);
++                  "%s %s", ui_text("Install"), archive_extension);
+     std::snprintf(archive_pattern, sizeof(archive_pattern),
+                   "*%s", archive_extension);
+     if (ImGui::Button(install_label)) {
+-        ui_pick_file(m, "Install Mod Package", {archive_pattern},
++        ui_pick_file(m, ui_text("Install Mod Package"), {archive_pattern},
+                      archive_description, [m, mods](const char* path) {
+             if (!path) return;
+             if (!mods->install_archive ||
+@@ -12637,7 +12667,7 @@ void draw_footer(LauncherModel* m, const LauncherTheme& th, float footer_h) {
+             if (ImGui::Button(ui_text("Refresh"), ImVec2(refresh_w, play_h)))
+                 np_refresh_lobby_list(m);
+             if (ImGui::IsItemHovered())
+-                ImGui::SetTooltip("Reload server lobbies and rescan LAN/Direct IP");
++                ImGui::SetTooltip(ui_text("Reload server lobbies and rescan LAN/Direct IP"));
+             ImGui::SetCursorScreenPos(ImVec2(origin.x + fullw - action_w, cta_y));
+             if (lan_mode) {
+                 if (ImGui::Button(ui_text("Join Direct"), ImVec2(action_w, play_h)))
+@@ -12784,7 +12814,7 @@ void draw_footer(LauncherModel* m, const LauncherTheme& th, float footer_h) {
+                    (m->verify.verdict == 0 || m->verify.verdict == 3)) {
+             ImGui::SetTooltip("Select a verified %s first", noun);
+         } else if (m->setup_preparing) {
+-            ImGui::SetTooltip("Wait for the current setup job to finish");
++            ImGui::SetTooltip(ui_text("Wait for the current setup job to finish"));
+         } else {
+             ImGui::SetTooltip("Select a valid %s first", noun);
+         }
+@@ -13005,7 +13035,7 @@ static void draw_setup_disc_frame(LauncherModel* m, const LauncherTheme& th,
+     ImGui::TextColored(col(ready >= count ? th.good : th.warn),
+                        "%d of %d located", ready, count);
+     ImGui::SameLine();
+-    ImGui::TextColored(col(th.text_muted), "- all discs are required.");
++    ImGui::TextColored(col(th.text_muted), ui_text("- all discs are required."));
+     ImGui::SameLine();
+     setup_help_marker(th, long_note);
+ 
+@@ -13048,7 +13078,7 @@ static void draw_setup_disc_frame(LauncherModel* m, const LauncherTheme& th,
+                 if (ImGui::IsItemHovered())
+                     ImGui::SetTooltip("Look for a file named:\n%s", hint);
+             } else {
+-                ImGui::TextColored(col(th.text_muted), "(not selected)");
++                ImGui::TextColored(col(th.text_muted), ui_text("(not selected)"));
+             }
+         }
+ 
+@@ -13057,7 +13087,7 @@ static void draw_setup_disc_frame(LauncherModel* m, const LauncherTheme& th,
+             const float avail = ImGui::GetContentRegionAvail().x;
+             if (avail > btn_w)
+                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail - btn_w);
+-            if (ImGui::Button("Browse", ImVec2(btn_w, 0))) {
++            if (ImGui::Button(ui_text("Browse"), ImVec2(btn_w, 0))) {
+                 char title[96];
+                 std::snprintf(title, sizeof(title), "Select %s (.cue/.bin/.car/.chd)",
+                               launcher_model_disc_label(m, i));
+@@ -13075,7 +13105,7 @@ static void draw_setup_disc_frame(LauncherModel* m, const LauncherTheme& th,
+      * a button that was not pressed. */
+     const bool can_autofill = ready > 0 && ready < count;
+     ImGui::BeginDisabled(!can_autofill);
+-    if (ImGui::Button("Find other discs", ImVec2(px(150), px(28)))) {
++    if (ImGui::Button(ui_text("Find other discs"), ImVec2(px(150), px(28)))) {
+         const int filled = launcher_model_autofill_sibling_discs(m);
+         std::snprintf(m->setup_status, sizeof(m->setup_status),
+                       filled > 0 ? "Located %d more disc image(s)."
+@@ -13085,7 +13115,7 @@ static void draw_setup_disc_frame(LauncherModel* m, const LauncherTheme& th,
+     }
+     ImGui::EndDisabled();
+     if (ImGui::IsItemHovered() && !can_autofill && ready == 0)
+-        ImGui::SetTooltip("Pick one disc first, then this looks for the rest.");
++        ImGui::SetTooltip(ui_text("Pick one disc first, then this looks for the rest."));
+ }
+ 
+ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+@@ -13150,7 +13180,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::PopTextWrapPos();
+         ImGui::Dummy(ImVec2(0, px(12)));
+ 
+-        ImGui::TextUnformatted("1. Portable toolchain");
++        ImGui::TextUnformatted(ui_text("1. Portable toolchain"));
+         ImGui::PushTextWrapPos(wrap_x);
+         ImGui::TextColored(col(th.text_muted),
+             "Automatic download pulls the latest cmake-clang-v1 release and "
+@@ -13170,7 +13200,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+                                ver_line);
+         }
+         ImGui::Dummy(ImVec2(0, px(4)));
+-        ImGui::TextColored(col(th.text_muted), "Source / manual download:");
++        ImGui::TextColored(col(th.text_muted), ui_text("Source / manual download:"));
+         ImGui::SameLine();
+         setup_url_link("TechnicallyComputers/retcomm-toolchains",
+                        kRetcommToolchainsUrl);
+@@ -13186,7 +13216,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+ 
+         if (!m->setup_tc_auto) {
+             ImGui::Dummy(ImVec2(0, px(8)));
+-            ImGui::TextUnformatted("Toolchain zip");
++            ImGui::TextUnformatted(ui_text("Toolchain zip"));
+             ImGui::PushTextWrapPos(wrap_x);
+             ImGui::TextColored(col(th.text_muted),
+                 "Select a cmake-clang-v1-*.zip from "
+@@ -13208,7 +13238,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+                 zelided);
+             ImGui::SameLine();
+             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(px(12), px(6)));
+-            if (ImGui::Button("Browse zip…##tc", ImVec2(px(128), px(32)))) {
++            if (ImGui::Button(ui_text("Browse zip…##tc"), ImVec2(px(128), px(32)))) {
+                 PickRequest req;
+                 req.title = "Select cmake-clang-v1 toolchain zip";
+                 req.patterns = {"*.zip"};
+@@ -13260,14 +13290,14 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         }
+         if (want_update) {
+             ImGui::SameLine();
+-            if (ImGui::Button("Skip for now##tc_skip", ImVec2(px(140), px(34))))
++            if (ImGui::Button(ui_text("Skip for now##tc_skip"), ImVec2(px(140), px(34))))
+                 launcher_model_skip_toolchain_update(m);
+             if (ImGui::IsItemHovered())
+                 ImGui::SetTooltip(
+                     "Keep the installed toolchain for this session.");
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Quit", ImVec2(px(100), px(34))))
++        if (ImGui::Button(ui_text("Quit"), ImVec2(px(100), px(34))))
+             m->action = LNG_ACTION_QUIT;
+ 
+         if (m->setup_wizard_open && !ImGui::IsPopupOpen("First-run setup"))
+@@ -13296,7 +13326,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::TextColored(col(th.text_muted), "%s", launcher_model_bios_prepare_note(m));
+         ImGui::PopTextWrapPos();
+     } else if (bios_regen) {
+-        ImGui::TextColored(col(th.accent), "Rebuild required for this BIOS");
++        ImGui::TextColored(col(th.accent), ui_text("Rebuild required for this BIOS"));
+         ImGui::PushTextWrapPos(wrap_x);
+         ImGui::TextColored(col(th.text_muted),
+             "%s was built against a different BIOS. Keep your selection below "
+@@ -13332,7 +13362,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         }
+         ImGui::PopTextWrapPos();
+     } else {
+-        ImGui::TextColored(col(th.accent), "Setup required");
++        ImGui::TextColored(col(th.accent), ui_text("Setup required"));
+         ImGui::PushTextWrapPos(wrap_x);
+         if (plat == SETUP_PLAT_PSX && m->has_bios) {
+             /* The BIOS and disc sections below each answer this for themselves,
+@@ -13404,14 +13434,14 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         ImGui::TextColored(col(has_pick ? th.text : th.text_muted), "%s", belided);
+         ImGui::SameLine();
+         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(px(12), px(6)));
+-        if (ImGui::Button("Browse BIOS##setup", ImVec2(px(120), px(32)))) {
++        if (ImGui::Button(ui_text("Browse BIOS##setup"), ImVec2(px(120), px(32)))) {
+             request_bios_picker(m, bios_picker, true);
+         }
+         if (offers_bundled) {
+             ImGui::SameLine();
+             /* Always visible; greyed out when OpenBIOS is already selected. */
+             if (!has_pick) ImGui::BeginDisabled();
+-            if (ImGui::Button("Use OpenBIOS##setup", ImVec2(px(128), px(32))))
++            if (ImGui::Button(ui_text("Use OpenBIOS##setup"), ImVec2(px(128), px(32))))
+                 launcher_model_request_bios_path(m, "");
+             if (!has_pick) ImGui::EndDisabled();
+             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+@@ -13640,7 +13670,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+ 
+     ImGui::Dummy(ImVec2(0, px(14)));
+     if (m->setup_needs_toolchain) {
+-        if (ImGui::Button("Back", ImVec2(px(100), px(34)))) {
++        if (ImGui::Button(ui_text("Back"), ImVec2(px(100), px(34)))) {
+             m->setup_page = 0;
+             /* Re-offer the update UI if a newer pack is still available. */
+             m->setup_tc_update_skipped = false;
+@@ -13665,10 +13695,10 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+                 ImGui::SetTooltip("%s", blocker);
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Use OpenBIOS", ImVec2(px(130), px(34))))
++        if (ImGui::Button(ui_text("Use OpenBIOS"), ImVec2(px(130), px(34))))
+             launcher_model_request_bios_path(m, "");
+         if (ImGui::IsItemHovered())
+-            ImGui::SetTooltip("Play now with the bundled OpenBIOS (no rebuild).");
++            ImGui::SetTooltip(ui_text("Play now with the bundled OpenBIOS (no rebuild)."));
+         ImGui::SameLine();
+     } else if (!m->prepare_required_before_continue) {
+         const bool ready = launcher_model_can_finish_setup(m);
+@@ -13690,18 +13720,18 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+                 if (!m->rom_present || !m->rom_full[0])
+                     ImGui::SetTooltip("Select a %s first", noun);
+                 else if (m->setup_preparing)
+-                    ImGui::SetTooltip("Wait for the current job to finish");
++                    ImGui::SetTooltip(ui_text("Wait for the current job to finish"));
+                 else if (m->has_bios && m->setup_bios_needs_regen)
+                     ImGui::SetTooltip(launcher_model_bios_prepare_available(m)
+                                       ? "Prepare this BIOS first, or switch to OpenBIOS"
+                                       : "Generate & rebuild with this BIOS "
+                                         "first, or switch to OpenBIOS");
+                 else if (m->has_bios && !m->setup_bios_ok)
+-                    ImGui::SetTooltip("BIOS check required");
++                    ImGui::SetTooltip(ui_text("BIOS check required"));
+                 else if (m->netplay_supported &&
+                          m->profile && m->profile->verify.mode == 1 &&
+                          !m->verify.netplay_ok)
+-                    ImGui::SetTooltip("Disc mount / track layout not accepted");
++                    ImGui::SetTooltip(ui_text("Disc mount / track layout not accepted"));
+             }
+         }
+         ImGui::SameLine();
+@@ -13710,7 +13740,7 @@ void draw_setup_wizard_modal(LauncherModel* m, const LauncherTheme& th) {
+         launcher_model_finish_setup(m);
+         ImGui::CloseCurrentPopup();
+     }
+-    if (ImGui::Button("Quit", ImVec2(px(100), px(34))))
++    if (ImGui::Button(ui_text("Quit"), ImVec2(px(100), px(34))))
+         m->action = LNG_ACTION_QUIT;
+ 
+     if (m->setup_wizard_open && !ImGui::IsPopupOpen("First-run setup"))
+@@ -13752,11 +13782,11 @@ void draw_bios_confirm_modal(LauncherModel* m, const LauncherTheme& th) {
+             "this — use Use OpenBIOS instead.");
+     if (m->bios_pending_path[0]) {
+         ImGui::Dummy(ImVec2(0, px(8)));
+-        ImGui::TextColored(col(th.text_muted), "Selected:");
++        ImGui::TextColored(col(th.text_muted), ui_text("Selected:"));
+         ImGui::TextWrapped("%s", m->bios_pending_path);
+     } else {
+         ImGui::Dummy(ImVec2(0, px(8)));
+-        ImGui::TextColored(col(th.text_muted), "Selected: OpenBIOS");
++        ImGui::TextColored(col(th.text_muted), ui_text("Selected: OpenBIOS"));
+     }
+     if (m->setup_bios_detail[0]) {
+         ImGui::Dummy(ImVec2(0, px(6)));
+@@ -13777,12 +13807,12 @@ void draw_bios_confirm_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::SetTooltip("%s", generate_disabled_reason(m));
+     }
+     ImGui::SameLine();
+-    if (ImGui::Button("Use OpenBIOS", ImVec2(px(130), px(32)))) {
++    if (ImGui::Button(ui_text("Use OpenBIOS"), ImVec2(px(130), px(32)))) {
+         launcher_model_bios_confirm_cancel(m);
+         launcher_model_request_bios_path(m, "");
+     }
+     ImGui::SameLine();
+-    if (ImGui::Button("Cancel", ImVec2(px(100), px(32))))
++    if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+         launcher_model_bios_confirm_cancel(m);
+     if (!m->bios_confirm_open) ImGui::CloseCurrentPopup();
+     ImGui::EndPopup();
+@@ -13806,11 +13836,11 @@ void draw_bios_play_modal(LauncherModel* m, const LauncherTheme& th) {
+             "without rebuilding, or cancel and keep the current selection.");
+     if (m->s.bios_path[0]) {
+         ImGui::Dummy(ImVec2(0, px(8)));
+-        ImGui::TextColored(col(th.text_muted), "Current selection:");
++        ImGui::TextColored(col(th.text_muted), ui_text("Current selection:"));
+         ImGui::TextWrapped("%s", m->s.bios_path);
+     } else {
+         ImGui::Dummy(ImVec2(0, px(8)));
+-        ImGui::TextColored(col(th.text_muted), "Current selection: OpenBIOS");
++        ImGui::TextColored(col(th.text_muted), ui_text("Current selection: OpenBIOS"));
+     }
+     if (m->setup_bios_detail[0]) {
+         ImGui::Dummy(ImVec2(0, px(6)));
+@@ -13831,10 +13861,10 @@ void draw_bios_play_modal(LauncherModel* m, const LauncherTheme& th) {
+             ImGui::SetTooltip("%s", generate_disabled_reason(m));
+     }
+     ImGui::SameLine();
+-    if (ImGui::Button("Use OpenBIOS", ImVec2(px(130), px(32))))
++    if (ImGui::Button(ui_text("Use OpenBIOS"), ImVec2(px(130), px(32))))
+         launcher_model_bios_play_use_openbios(m);
+     ImGui::SameLine();
+-    if (ImGui::Button("Cancel", ImVec2(px(100), px(32))))
++    if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+         launcher_model_bios_play_cancel(m);
+     if (!m->bios_play_modal_open) ImGui::CloseCurrentPopup();
+     ImGui::EndPopup();
+@@ -13863,10 +13893,10 @@ void draw_pgo_confirm_modal(LauncherModel* m, const LauncherTheme& th) {
+                        "netplay. Digests must still match.");
+     ImGui::PopTextWrapPos();
+     ImGui::Dummy(ImVec2(0, px(12)));
+-    if (ImGui::Button("Start training", ImVec2(px(160), px(32))))
++    if (ImGui::Button(ui_text("Start training"), ImVec2(px(160), px(32))))
+         launcher_model_pgo_confirm_accept(m);
+     ImGui::SameLine();
+-    if (ImGui::Button("Cancel", ImVec2(px(100), px(32))))
++    if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+         launcher_model_pgo_confirm_cancel(m);
+     if (!m->pgo_confirm_open) ImGui::CloseCurrentPopup();
+     ImGui::EndPopup();
+@@ -13895,10 +13925,10 @@ void draw_fmv_timing_confirm_modal(LauncherModel* m, const LauncherTheme& th) {
+                        "for matching rollback digests.");
+     ImGui::PopTextWrapPos();
+     ImGui::Dummy(ImVec2(0, px(12)));
+-    if (ImGui::Button("Generate & rebuild", ImVec2(px(180), px(32))))
++    if (ImGui::Button(ui_text("Generate & rebuild"), ImVec2(px(180), px(32))))
+         launcher_model_fmv_timing_confirm_accept(m);
+     ImGui::SameLine();
+-    if (ImGui::Button("Cancel", ImVec2(px(100), px(32))))
++    if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+         launcher_model_fmv_timing_confirm_cancel(m);
+     if (!m->fmv_timing_confirm_open) ImGui::CloseCurrentPopup();
+     ImGui::EndPopup();
+@@ -13914,11 +13944,11 @@ void draw_skip_modal(LauncherModel* m) {
+                            "Run with \"--launcher\" or set \"SkipLauncher = 0\" in config.ini "
+                            "to bring it back.");
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             launcher_model_skip_cancel(m); ImGui::CloseCurrentPopup();
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Skip on Boot", ImVec2(px(140), 0))) {
++        if (ImGui::Button(ui_text("Skip on Boot"), ImVec2(px(140), 0))) {
+             launcher_model_skip_confirm(m); ImGui::CloseCurrentPopup();
+         }
+         ImGui::EndPopup();
+@@ -13935,12 +13965,12 @@ void draw_restore_defaults_modal(LauncherModel* m) {
+             "This resets display, audio, controller, and launcher choices. "
+             "Your selected ROM, SRAM, and save states are not changed.");
+         ImGui::Spacing();
+-        if (ImGui::Button("Cancel", ImVec2(px(120), 0))) {
++        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(120), 0))) {
+             launcher_model_cancel_restore_defaults(m);
+             ImGui::CloseCurrentPopup();
+         }
+         ImGui::SameLine();
+-        if (ImGui::Button("Restore Defaults", ImVec2(px(150), 0))) {
++        if (ImGui::Button(ui_text("Restore Defaults"), ImVec2(px(150), 0))) {
+             launcher_model_restore_defaults(m);
+             ImGui::CloseCurrentPopup();
+         }
+@@ -14064,8 +14094,11 @@ void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logic
+                               (m->has_assist_tools ? 1 : 0) +
+                               ((m->credits_text && m->credits_text[0]) ? 1 : 0);
+             const float w = px(110.0f);
+-            const float total = w * count + gap * (count - 1);
++            const float lang_w = px(120.0f);
++            const float total = lang_w + gap + w * count + gap * (count - 1);
+             ImGui::SetCursorPos(ImVec2(right - total, y));
++            language_picker(lang_w, px(34));
++            ImGui::SameLine(0, gap);
+             if (ImGui::Button(ui_text("Settings"), ImVec2(w, px(34))))
+                 launcher_model_set_view(m, LNG_VIEW_SETTINGS);
+             if (m->mods) {
+diff --git a/src/common/launcher_i18n.cpp b/src/common/launcher_i18n.cpp
+index 3f47e15..51a0903 100644
+--- a/src/common/launcher_i18n.cpp
++++ b/src/common/launcher_i18n.cpp
+@@ -1,17 +1,366 @@
++// launcher_i18n.cpp -- run-time launcher localization (see launcher_i18n.h).
+ #include "launcher_i18n.h"
++#include "launcher_ini.h"
+ 
++#include <cctype>
++#include <cstdio>
+ #include <cstring>
++#include <map>
++#include <string>
++#include <vector>
+ 
+ #ifndef RECOMP_UI_LANGUAGE
+ #define RECOMP_UI_LANGUAGE "en"
+ #endif
+ 
+-struct LauncherI18nEntry {
+-    const char* english;
+-    const char* localized;
++static const LauncherI18nPair kSpanish[] = {
++    {"Settings", "Ajustes"},
++    {"Mods", "Mods"},
++    {"Assist Tools", "Ayudas"},
++    {"Credits", "Créditos"},
++    {"< Back", "< Volver"},
++    {"Set player name", "Nombre del jugador"},
++    {"Install", "Instalar"},
++    {"Install Mod Package", "Instalar paquete de mods"},
++    {"Package installed. Changes apply when you press PLAY.",
++     "Paquete instalado. Los cambios se aplican al presionar JUGAR."},
++    {"Disable all", "Desactivar todo"},
++    {"Disable every installed mod feature", "Desactiva todas las funciones de mods instaladas"},
++    {"Search features, groups, packages...", "Buscar funciones, grupos, paquetes..."},
++    {"General", "General"},
++    {"No matching features.", "Ninguna función coincide."},
++    {"No mod features installed.", "No hay funciones de mods instaladas."},
++    {"Disable", "Desactivar"},
++    {"Enable", "Activar"},
++    {"From", "De"},
++    {"Source: ", "Origen: "},
++    {"Project page", "Página del proyecto"},
++    {"3D camera controls", "Controles de cámara 3D"},
++    {"This mod adds live camera input. Review the current right-stick and keyboard bindings before playing.",
++     "Este mod agrega control de cámara. Revisa las asignaciones del stick derecho y del teclado antes de jugar."},
++    {"Enable this feature to expose its camera bindings on the Controller page.",
++     "Activa esta función para ver sus controles de cámara en la página Control."},
++    {"Review Camera Bindings", "Revisar controles de cámara"},
++    {"Files", "Archivos"},
++    {"(optional)", "(opcional)"},
++    {"Not selected", "Sin seleccionar"},
++    {"Change folder", "Cambiar carpeta"},
++    {"Change file", "Cambiar archivo"},
++    {"Select folder", "Elegir carpeta"},
++    {"Select file", "Elegir archivo"},
++    {"Configuration", "Configuración"},
++    {"Install or select a feature to configure it.",
++     "Instala o elige una función para configurarla."},
++    {"Skip launcher on boot", "Saltar esta ventana al iniciar"},
++    {"Restore Defaults", "Valores predeterminados"},
++    {"Host Lobby", "Crear sala"},
++    {"Network Settings", "Ajustes de red"},
++    {"Refresh", "Actualizar"},
++    {"Join Direct", "Unirse directo"},
++    {"Automatch", "Emparejar"},
++    {"Queued", "En cola"},
++    {"Actions##np_footer", "Acciones##np_footer"},
++    {"Browse For", "Buscar"},
++    {"Browse", "Buscar"},
++    {"New", "Nuevo"},
++    {"Configure", "Configurar"},
++    {"Enabled", "Activado"},
++    {"connected", "conectado"},
++    {"not assigned", "sin asignar"},
++    {"PLAY", "JUGAR"},
++    {"Disc", "Disco"},
++    {"ROM", "ROM"},
++    {"Memory Card", "Memory Card"},
++    {"Serial", "Serie"},
++    {"Region", "Región"},
++    {"ISO header", "Cabecera ISO"},
++    {"File", "Archivo"},
++    {"Tracks", "Pistas"},
++    {"OK", "OK"},
++    {"Mismatch", "No coincide"},
++    {"Disc Selection", "Elegir disco"},
++    {"No disc selected", "Ningún disco elegido"},
++    {"Disc verified", "Disco verificado"},
++    {"Disc verified (warnings)", "Disco verificado (con avisos)"},
++    {"Disc verification failed", "Falló la verificación del disco"},
++    {"Disc not recognized", "Disco no reconocido"},
++    {"Skip (Play Unpatched)", "Omitir (jugar sin parche)"},
++    {"Patch ROM", "Parchar ROM"},
++    {"Insert...", "Insertar..."},
++    {"Browse save...", "Buscar partida..."},
++    {"None", "Ninguno"},
++    {"Keyboard + Mouse", "Teclado + ratón"},
++    {"Keyboard", "Teclado"},
++    {"Controller", "Control"},
++    {"(disconnected)", "(desconectado)"},
++    {"(no gamepad connected)", "(ningún control conectado)"},
++    {"PLAYER", "JUGADOR"},
++    {"NETPLAY", "EN LÍNEA"},
++    {"CONTROLLER", "CONTROL"},
++    {"CONTROLLER - PLAYER", "CONTROL - JUGADOR"},
++    {"Input source", "Entrada"},
++    {"Rename Gamepad", "Renombrar control"},
++    {"Delete Gamepad", "Borrar control"},
++    {"Display name for this gamepad:", "Nombre para este control:"},
++    {"Cancel", "Cancelar"},
++    {"Deadzone", "Zona muerta"},
++    {"DISPLAY", "VIDEO"},
++    {"AUDIO", "AUDIO"},
++    {"HOTKEYS", "ATAJOS"},
++    {"SYSTEM", "SISTEMA"},
++    {"INPUT", "ENTRADA"},
++    {"ONLINE", "EN LÍNEA"},
++    {"CREDITS", "CRÉDITOS"},
++    {"ASSIST TOOLS / CHEATS", "AYUDAS / TRUCOS"},
++    {"MOUSE", "RATÓN"},
++    {"SAVES", "PARTIDAS"},
++    {"LOCALIZATION", "IDIOMA"},
++    {"SOLAR SENSOR", "SENSOR SOLAR"},
++    {"ROM PATCH", "PARCHE DE ROM"},
++    {"Window scale", "Escala de ventana"},
++    {"Window size", "Tamaño de ventana"},
++    {"Fullscreen", "Pantalla completa"},
++    {"Screen layout", "Disposición de pantalla"},
++    {"Integer scaling", "Escala entera"},
++    {"Scaling filter", "Filtro de escala"},
++    {"Linear filtering", "Filtro lineal"},
++    {"Texture filtering", "Filtro de texturas"},
++    {"Affine background smoothing", "Suavizado de fondos afines"},
++    {"Shader", "Shader"},
++    {"Custom", "Personalizado"},
++    {"Folder", "Carpeta"},
++    {"Renderer", "Renderizador"},
++    {"Supersampling", "Supermuestreo"},
++    {"Internal resolution", "Resolución interna"},
++    {"Native", "Nativa"},
++    {"Match display", "Igual que la pantalla"},
++    {"Antialiasing", "Antialiasing"},
++    {"FMV filtering", "Filtro de videos"},
++    {"Nearest", "Píxeles nítidos"},
++    {"Bilinear", "Bilineal"},
++    {"Sharp", "Nítido"},
++    {"Bicubic", "Bicúbico"},
++    {"Perspective textures", "Texturas con perspectiva"},
++    {"Screen model", "Modelo de pantalla"},
++    {"Frame interpolation", "Interpolación de cuadros"},
++    {"Presentation target", "Objetivo de presentación"},
++    {"VSync", "VSync"},
++    {"Skip FMVs", "Saltar videos"},
++    {"Rewind", "Rebobinar"},
++    {"Rewind buffer", "Memoria de rebobinado"},
++    {"Rewind interval", "Intervalo de rebobinado"},
++    {"HD texture pack", "Paquete de texturas HD"},
++    {"HD textures", "Texturas HD"},
++    {"Sample rate", "Frecuencia de muestreo"},
++    {"Volume", "Volumen"},
++    {"Output device", "Dispositivo de salida"},
++    {"Language", "Idioma"},
++    {"(system default)", "(predeterminado del sistema)"},
++    {"High-quality SPU", "SPU de alta calidad"},
++    {"Enable MSU-1 music", "Activar música MSU-1"},
++    {"BIOS", "BIOS"},
++    {"Retail GBA BIOS required", "Se necesita la BIOS original de GBA"},
++    {"Use OpenBIOS", "Usar OpenBIOS"},
++    {"Clear", "Borrar"},
++    {"Edit", "Editar"},
++    {"Edit##cc", "Editar##cc"},
++    {"Save", "Guardar"},
++    {"Save##cc", "Guardar##cc"},
++    {"Browse...", "Buscar..."},
++    {"Cancel##cc", "Cancelar##cc"},
++    {"Optimize FMV Playback", "Optimizar reproducción de videos"},
++    {"Features", "Funciones"},
++    {"Installed packages", "Paquetes instalados"},
++    {"Player name", "Nombre del jugador"},
++    {"console default", "predeterminado de la consola"},
++    {"Off", "No"},
++    {"On", "Sí"},
++    {"Borderless", "Sin bordes"},
++    {"Exclusive", "Exclusiva"},
++    {"Default", "Predeterminado"},
++    {"Adaptive", "Adaptable"},
++    {"Display refresh", "Frecuencia de pantalla"},
++    {"Software", "Software"},
++    {"OpenGL", "OpenGL"},
++    {"Reset", "Reiniciar"},
++    {"Pause", "Pausa"},
++    {"Pause (dimmed)", "Pausa (oscurecida)"},
++    {"Fast-forward", "Avance rápido"},
++    {"Window bigger", "Ventana más grande"},
++    {"Window smaller", "Ventana más chica"},
++    {"Volume up", "Subir volumen"},
++    {"Volume down", "Bajar volumen"},
++    {"FPS readout", "Mostrar FPS"},
++    {"Toggle renderer", "Cambiar renderizador"},
++    {"Save states menu", "Menú de guardados rápidos"},
++    {"Open launcher", "Abrir esta ventana"},
++    {"RESUME", "CONTINUAR"},
++    {"QUIT GAME", "SALIR DEL JUEGO"},
++    {"(unbound)", "(sin asignar)"},
++    {"[ press... ]", "[ presiona... ]"},
++    {"Enable Assist Tools / Cheats", "Activar ayudas / trucos"},
++    {"FAST-FORWARD SPEED", "VELOCIDAD DE AVANCE RÁPIDO"},
++    {"Enable ROM patch", "Activar parche de ROM"},
++    {"No patch selected", "Ningún parche elegido"},
++    {"%d mod package could not be loaded", "%d paquete de mods no se pudo cargar"},
++    {"%d mod packages could not be loaded", "%d paquetes de mods no se pudieron cargar"},
++    {"Battery save", "Partida en batería"},
++    {"Clear selection", "Quitar selección"},
++    {"Close", "Cerrar"},
++    {"Custom, based on", "Personalizado, basado en"},
++    {"DEV", "DEV"},
++    {"DEVELOPER", "DESARROLLO"},
++    {"Detect this computer again and apply the preset it suits.",
++     "Volver a detectar esta computadora y aplicar el ajuste que le corresponde."},
++    {"Detected", "Detectado"},
++    {"EXP", "EXP"},
++    {"EXPERIMENTAL", "EXPERIMENTAL"},
++    {"Found automatically", "Encontrado automáticamente"},
++    {"LOBBY", "SALA"},
++    {"Leave Lobby", "Salir de la sala"},
++    {"Open folder", "Abrir carpeta"},
++    {"Preparing your game...", "Preparando tu juego..."},
++    {"Re-detect", "Detectar de nuevo"},
++    {"Remove", "Quitar"},
++    {"Room Info", "Información de la sala"},
++    {"Save Profile", "Guardar perfil"},
++    {"Select BIOS...", "Elegir BIOS..."},
++    {"Select it in Settings > System.", "Elígelo en Ajustes > Sistema."},
++    {"Send", "Enviar"},
++    {"Use default", "Usar predeterminado"},
++    {"View Mods", "Ver mods"},
++    {"detected", "detectado"},
++    {"required", "obligatorio"},
++    /* ── second pass: labels routed through ui_text() ── */
++    {"  (click to rebind, right-click to clear; yellow = bound more than once)",
++     "  (clic para reasignar, clic derecho para borrar; amarillo = asignado más de una vez)"},
++    {" (built-in)", " (integrado)"},
++    {" (set by the host)", " (lo decide el anfitrión)"},
++    {"%s not recognized", "%s no reconocida"},
++    {"%s verified", "%s verificada"},
++    {"No %s loaded", "No hay %s cargada"},
++    {"(Not set)", "(Sin definir)"},
++    {"(frames)", "(cuadros)"},
++    {"(ignored)", "(ignorado)"},
++    {"(not selected)", "(sin elegir)"},
++    {"(you)", "(tú)"},
++    {"Accept", "Aceptar"},
++    {"Action", "Acción"},
++    {"Allow Spectators", "Permitir espectadores"},
++    {"An opponent is ready.", "Un rival está listo."},
++    {"Anything to add (optional)", "¿Algo más? (opcional)"},
++    {"Auto Map All", "Asignar todo automáticamente"},
++    {"Back", "Volver"},
++    {"Block Player", "Bloquear jugador"},
++    {"Browsing", "Explorando"},
++    {"Built-in browser (no desktop file-picker service required)",
++     "Explorador integrado (no necesita el selector de archivos del escritorio)"},
++    {"CHAT", "CHAT"},
++    {"Cancel Auto Map", "Cancelar asignación automática"},
++    {"Changes are saved when you press Play or close the launcher.",
++     "Los cambios se guardan al presionar Jugar o al cerrar esta ventana."},
++    {"Connected", "Conectado"},
++    {"Create Lobby", "Crear sala"},
++    {"Current selection:", "Selección actual:"},
++    {"Decline", "Rechazar"},
++    {"Delete Profile", "Borrar perfil"},
++    {"Display name for this controller:", "Nombre para este control:"},
++    {"Gamepad", "Control"},
++    {"Gamepad default", "Predeterminado del control"},
++    {"Generate & rebuild", "Generar y recompilar"},
++    {"Home", "Inicio"},
++    {"Host", "Anfitrión"},
++    {"Ignore Player", "Ignorar jugador"},
++    {"Import", "Importar"},
++    {"Input Profile Saved!", "¡Perfil de controles guardado!"},
++    {"Install or select a package to configure it.", "Instala o elige un paquete para configurarlo."},
++    {"Invert X", "Invertir X"},
++    {"Invert Y", "Invertir Y"},
++    {"Join", "Unirse"},
++    {"Kick", "Expulsar"},
++    {"Latency", "Latencia"},
++    {"Later", "Después"},
++    {"Listening... (Esc cancels, Backspace unbinds)", "Esperando... (Esc cancela, Retroceso borra)"},
++    {"Lobby", "Sala"},
++    {"Map All Bindings", "Asignar todos los controles"},
++    {"Max Players", "Máximo de jugadores"},
++    {"MODS", "MODS"},
++    {"MSU-1 patch available", "Parche MSU-1 disponible"},
++    {"Needs files", "Faltan archivos"},
++    {"Needs mods", "Faltan mods"},
++    {"No", "No"},
++    {"No desktop file picker (zenity/kdialog) found.",
++     "No hay selector de archivos del escritorio."},
++    {"The desktop file picker could not run.", "El selector de archivos del escritorio no pudo abrirse."},
++    {"No matching packages.", "Ningún paquete coincide."},
++    {"Not ready", "No listo"},
++    {"Open assets/shaders to add presets.", "Abre assets/shaders para agregar ajustes."},
++    {"Password (optional)", "Contraseña (opcional)"},
++    {"Player", "Jugador"},
++    {"Players", "Jugadores"},
++    {"Port", "Puerto"},
++    {"Quit", "Salir"},
++    {"Reason", "Motivo"},
++    {"Rename", "Renombrar"},
++    {"Reset Camera Bindings", "Restablecer controles de cámara"},
++    {"Reset to Defaults", "Restablecer valores"},
++    {"Save||battery save row label", "Partida"},
++    {"Select an installed version (rollback)", "Elegir una versión instalada (volver atrás)"},
++    {"Select files…", "Elegir archivos…"},
++    {"Selected:", "Elegido:"},
++    {"Setup required", "Falta configurar"},
++    {"Show crosshair (hides the OS cursor)", "Mostrar mira (oculta el cursor)"},
++    {"Sign out", "Cerrar sesión"},
++    {"Signed in as", "Sesión iniciada como"},
++    {"Skip on Boot", "Saltar al iniciar"},
++    {"Slot", "Ranura"},
++    {"Spectators", "Espectadores"},
++    {"State", "Estado"},
++    {"Status", "Estado"},
++    {"Swap", "Intercambiar"},
++    {"Up", "Arriba"},
++    {"Validation", "Validación"},
++    {"Wait for the current job to finish", "Espera a que termine la tarea actual"},
++    {"Wait for the current setup job to finish", "Espera a que termine la configuración actual"},
++    {"Waiting", "Esperando"},
++    {"Where", "Dónde"},
++    {"no save yet", "sin partida aún"},
++    {"16:9 (Widescreen)", "16:9 (pantalla ancha)"},
++    {"21:9 (Ultrawide)", "21:9 (ultra ancha)"},
++    {"4:3 (Native)", "4:3 (original)"},
++    {"Dashboard", "Inicio"},
++    {"Dynamic resolution", "Resolución dinámica"},
++    {"Fast-forward toggle", "Avance rápido (alternar)"},
++    {"Frame blending", "Mezcla de cuadros"},
++    {"Graphics preset", "Ajuste gráfico"},
++    {"Linear", "Lineal"},
++    {"Lowest resolution", "Resolución mínima"},
++    {"Netplay", "En línea"},
++    {"Run-ahead", "Run-ahead (menos retraso)"},
++    {"Scanline strength", "Intensidad de scanlines"},
++    {"Scanlines", "Scanlines"},
++    {"Sensitivity", "Sensibilidad"},
++    {"Sharp fractional", "Fraccional nítido"},
++    {"Smooth motion", "Movimiento suave"},
++    {"Raw", "Sin filtro"},
++    {"Composite", "Compuesto"},
++    {"by: ", "por: "},
++    {"Disabled", "Desactivado"},
++    {"Installed", "Instalado"},
++    {"Needs attention", "Requiere atención"},
++    {"Capturing", "Capturando"},
++    {"INPUT BINDINGS - PLAYER %d", "CONTROLES - JUGADOR %d"},
++    {"KEYBOARD BINDINGS - PLAYER %d", "TECLADO - JUGADOR %d"},
++    {"Down", "Abajo"}, {"Left", "Izquierda"}, {"Right", "Derecha"},
++    {"D-Pad Up||button", "Cruceta arriba"}, {"D-Pad Down||button", "Cruceta abajo"},
++    {"D-Pad Left||button", "Cruceta izquierda"}, {"D-Pad Right||button", "Cruceta derecha"},
++    {"Up||button", "Arriba"}, {"Down||button", "Abajo"}, {"Left||button", "Izquierda"},
++    {"Right||button", "Derecha"}, {"Space||button", "Espacio"}, {"Return||button", "Intro"},
++    {"[ press a key... ]", "[ presiona una tecla... ]"},
++    {"[ press a button... ]", "[ presiona un botón... ]"},
+ };
+ 
+-static const LauncherI18nEntry kItalian[] = {
++static const LauncherI18nPair kItalian[] = {
+     {"Settings", "Impostazioni"},
+     {"Mods", "Mod"},
+     {"Assist Tools", "Strumenti"},
+@@ -201,33 +550,200 @@ static const LauncherI18nEntry kItalian[] = {
+     {"FAST-FORWARD SPEED", "VELOCITA AVANZAMENTO"},
+     {"Enable ROM patch", "Abilita patch ROM"},
+     {"No patch selected", "Nessuna patch selezionata"},
++    /* ── second pass: labels routed through ui_text() ── */
++    {"%s verified", "%s verificata"},
++    {"%s not recognized", "%s non riconosciuta"},
++    {"No %s loaded", "Nessuna %s caricata"},
++    {" (built-in)", " (integrato)"},
++    {"No desktop file picker (zenity/kdialog) found.", "Nessun selettore file del desktop (zenity/kdialog) trovato."},
++    {"The desktop file picker could not run.", "Il selettore file del desktop non si è avviato."},
++    {"Save||battery save row label", "Salvataggio"},
++    {"no save yet", "nessun salvataggio"},
++    {"Import", "Importa"},
++    {"Gamepad", "Gamepad"},
++    {"Changes are saved when you press Play or close the launcher.",
++     "Le modifiche si salvano premendo Gioca o chiudendo il launcher."},
++    {"Frame blending", "Fusione fotogrammi"},
++    {"Run-ahead", "Run-ahead"},
++    {"Auto Map All", "Mappa tutto"},
++    {"Reset to Defaults", "Ripristina predefiniti"},
++    {"Save Profile", "Salva profilo"},
++    {"Rename", "Rinomina"},
++    {"Delete Profile", "Elimina profilo"},
++    {"INPUT BINDINGS - PLAYER %d", "COMANDI - GIOCATORE %d"},
++    {"KEYBOARD BINDINGS - PLAYER %d", "TASTIERA - GIOCATORE %d"},
++    {"Up", "Su"}, {"Down", "Giù"}, {"Left", "Sinistra"}, {"Right", "Destra"},
++    {"[ press a key... ]", "[ premi un tasto... ]"},
++    {"[ press a button... ]", "[ premi un pulsante... ]"},
++    {"by: ", "di: "},
++    {"Disabled", "Disattivata"},
++    {"Installed", "Installato"},
++    {"Needs attention", "Richiede attenzione"},
++    {"Close", "Chiudi"},
++    {"Quit", "Esci"},
++    {"Back", "Indietro"},
++};
++
++namespace {
++
++struct Table { const LauncherI18nPair* pairs; int count; };
++
++struct Language {
++    std::string code;
++    std::string name;            // native name shown in the picker
++    std::vector<Table> tables;   // later tables win
++    std::map<std::string, std::string> composed;   // "Label##id" results
+ };
+ 
+-static const char* lookup(const LauncherI18nEntry* entries, int count,
+-                          const char* english) {
++std::vector<Language>& languages() {
++    static std::vector<Language> list;
++    if (list.empty()) {
++        list.push_back({"en", "English", {}, {}});
++        list.push_back({"es", "Español", {{kSpanish, (int)(sizeof kSpanish / sizeof kSpanish[0])}}, {}});
++        list.push_back({"it", "Italiano", {{kItalian, (int)(sizeof kItalian / sizeof kItalian[0])}}, {}});
++    }
++    return list;
++}
++
++std::string base_code(const char* code) {
++    std::string c;
++    for (const char* p = code ? code : ""; *p && *p != '-' && *p != '_'; ++p)
++        c += (char)std::tolower((unsigned char)*p);
++    return c;
++}
++
++Language* find(const std::string& code) {
++    for (Language& l : languages())
++        if (l.code == code) return &l;
++    return nullptr;
++}
++
++int g_current = -1;   // index into languages(); -1 = not chosen yet
++
++Language& current() {
++    if (g_current < 0) {
++        Language* l = find(base_code(RECOMP_UI_LANGUAGE));
++        g_current = l ? (int)(l - &languages()[0]) : 0;
++    }
++    return languages()[(size_t)g_current];
++}
++
++const char* lookup_exact(const Language& lang, const char* english) {
++    for (auto t = lang.tables.rbegin(); t != lang.tables.rend(); ++t)
++        for (int i = 0; i < t->count; ++i)
++            if (std::strcmp(t->pairs[i].english, english) == 0)
++                return t->pairs[i].localized;
++    return nullptr;
++}
++
++const char* lang_composed_find(Language& lang, const char* key) {
++    auto it = lang.composed.find(key);
++    return it == lang.composed.end() ? nullptr : it->second.c_str();
++}
++
++std::string config_or_default(const char* path) {
++    return path && path[0] ? path : "config.ini";
++}
++
++}  // namespace
++
++extern "C" const char* launcher_i18n_language(void) {
++    return current().code.c_str();
++}
++
++extern "C" const char* launcher_i18n_text(const char* english) {
+     if (!english) return "";
+-    for (int i = 0; i < count; ++i) {
+-        if (std::strcmp(entries[i].english, english) == 0)
+-            return entries[i].localized;
++    Language& lang = current();
++    if (lang.tables.empty()) {
++        /* English: only strip a "||context" note. */
++        const char* bars = std::strstr(english, "||");
++        if (!bars) return english;
++        if (const char* hit = lang_composed_find(lang, english)) return hit;
++        return lang.composed.emplace(english, std::string(english, (size_t)(bars - english)))
++                   .first->second.c_str();
++    }
++    if (const char* hit = lookup_exact(lang, english)) return hit;
++    /* "Text||context": a key only an explicit "Text||context" entry
++     * translates (the same English word can need different translations, or
++     * none, in different places); otherwise it shows as plain "Text". */
++    const char* bars = std::strstr(english, "||");
++    if (bars) {
++        if (const char* hit = lang_composed_find(lang, english)) return hit;
++        return lang.composed.emplace(english, std::string(english, (size_t)(bars - english)))
++                   .first->second.c_str();
++    }
++    /* "Label##id": translate the label, keep the id. */
++    const char* hashes = std::strstr(english, "##");
++    if (hashes && hashes != english) {
++        auto it = lang.composed.find(english);
++        if (it != lang.composed.end()) return it->second.c_str();
++        std::string label(english, (size_t)(hashes - english));
++        const char* t = lookup_exact(lang, label.c_str());
++        std::string out = (t ? std::string(t) : label) + hashes;
++        return lang.composed.emplace(english, out).first->second.c_str();
+     }
+     return english;
+ }
+ 
+-const char* launcher_i18n_language(void) {
+-    return RECOMP_UI_LANGUAGE;
++extern "C" void launcher_i18n_set_language(const char* code) {
++    Language* l = find(base_code(code));
++    g_current = l ? (int)(l - &languages()[0]) : 0;
++}
++
++extern "C" int launcher_i18n_language_count(void) {
++    return (int)languages().size();
++}
++
++extern "C" const char* launcher_i18n_language_code(int index) {
++    if (index < 0 || index >= (int)languages().size()) return "";
++    return languages()[(size_t)index].code.c_str();
+ }
+ 
+-const char* launcher_i18n_text(const char* english) {
+-    const char* language = launcher_i18n_language();
+-    if (!language || language[0] == '\0' ||
+-        std::strcmp(language, "en") == 0 ||
+-        std::strcmp(language, "en-US") == 0) {
+-        return english ? english : "";
++extern "C" const char* launcher_i18n_language_name(int index) {
++    if (index < 0 || index >= (int)languages().size()) return "";
++    return languages()[(size_t)index].name.c_str();
++}
++
++extern "C" void launcher_i18n_register(const char* code, const char* native_name,
++                                       const LauncherI18nPair* pairs, int count) {
++    if (!code || !*code || !pairs || count <= 0) return;
++    const std::string c = base_code(code);
++    std::string keep = current().code;
++    Language* l = find(c);
++    if (!l) {
++        languages().push_back({c, native_name && *native_name ? native_name : c, {}, {}});
++        l = &languages().back();
+     }
+-    if (std::strcmp(language, "it") == 0 ||
+-        std::strcmp(language, "it-IT") == 0) {
+-        return lookup(kItalian, (int)(sizeof(kItalian) / sizeof(kItalian[0])),
+-                      english);
++    l->tables.push_back({pairs, count});
++    l->composed.clear();
++    g_current = (int)(find(keep) - &languages()[0]);   // vector may have moved
++}
++
++extern "C" void launcher_i18n_load_config(const char* config_path) {
++    FILE* f = std::fopen(config_or_default(config_path).c_str(), "rb");
++    if (!f) return;
++    char line[512];
++    bool general = false;
++    while (std::fgets(line, sizeof line, f)) {
++        char* s = line;
++        while (*s == ' ' || *s == '\t') ++s;
++        if (*s == '[') {
++            general = std::strncmp(s, "[General]", 9) == 0;
++            continue;
++        }
++        if (!general || std::strncmp(s, "LauncherLanguage", 16) != 0) continue;
++        char* eq = std::strchr(s, '=');
++        if (!eq) continue;
++        char* v = eq + 1;
++        while (*v == ' ' || *v == '\t') ++v;
++        char* end = v + std::strlen(v);
++        while (end > v && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ')) *--end = 0;
++        if (*v) launcher_i18n_set_language(v);
+     }
+-    return english ? english : "";
++    std::fclose(f);
++}
++
++extern "C" void launcher_i18n_save_config(const char* config_path) {
++    launcher_ini_kv_write(config_or_default(config_path).c_str(), "General",
++                          "LauncherLanguage", launcher_i18n_language());
+ }
+diff --git a/src/common/launcher_i18n.h b/src/common/launcher_i18n.h
+index 4f8c2f1..e8c2577 100644
+--- a/src/common/launcher_i18n.h
++++ b/src/common/launcher_i18n.h
+@@ -1,4 +1,48 @@
+ #pragma once
+ 
++/* Launcher localization.
++ *
++ * English is the source language: every string in the UI is written in
++ * English and looked up here at draw time. The language is chosen at run
++ * time (the language button in the launcher header) and remembered in the
++ * host's config.ini as [General] LauncherLanguage. English is the default
++ * unless the build sets RECOMP_UI_LANGUAGE or the player picks another one.
++ *
++ * Games add their own strings (mod feature names, in-game menus) with
++ * launcher_i18n_register(); the same lookup then serves them. */
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++typedef struct LauncherI18nPair {
++    const char* english;
++    const char* localized;
++} LauncherI18nPair;
++
++/* Current language code ("en", "es", "it", ...). */
+ const char* launcher_i18n_language(void);
++/* `english` in the current language; `english` itself when untranslated.
++ * A "Label##id" string translates its label and keeps the ImGui id. */
+ const char* launcher_i18n_text(const char* english);
++/* Switch language (unknown codes fall back to English). Does not persist. */
++void launcher_i18n_set_language(const char* code);
++
++/* Languages offered in the picker. */
++int launcher_i18n_language_count(void);
++const char* launcher_i18n_language_code(int index);
++const char* launcher_i18n_language_name(int index);   /* native name */
++
++/* Add translations for one language (the array must outlive the program,
++ * e.g. a static table). Registering a code the launcher does not know adds
++ * it to the picker under `native_name`. Later registrations win. */
++void launcher_i18n_register(const char* code, const char* native_name,
++                            const LauncherI18nPair* pairs, int count);
++
++/* [General] LauncherLanguage in a config.ini (NULL -> "config.ini"). */
++void launcher_i18n_load_config(const char* config_path);
++void launcher_i18n_save_config(const char* config_path);
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/src/common/launcher_ng_capi.c b/src/common/launcher_ng_capi.c
+index f696b0c..25f2c22 100644
+--- a/src/common/launcher_ng_capi.c
++++ b/src/common/launcher_ng_capi.c
+@@ -17,6 +17,7 @@
+ #include "launcher_platform.h"
+ #include "launcher_settings.h"
+ #include "launcher_theme.h"
++#include "launcher_i18n.h"
+ #include "launcher_window_size.h"
+ 
+ #include <stdio.h>
+@@ -211,6 +212,8 @@ int recomp_launcher_run_window(const char* window_title,
+      * undo them on RESUME. */
+     if (!game || !game->in_session)
+         launcher_settings_load(io, game);
++    /* The player's launcher language ([General] LauncherLanguage). */
++    launcher_i18n_load_config(game ? game->config_path : NULL);
+     LauncherModel model;
+     launcher_model_init(&model, io, game, initial_rom);
+     model.settings_saved_on_exit = launcher_settings_supported(game) != 0;
+-- 
+2.43.0
+

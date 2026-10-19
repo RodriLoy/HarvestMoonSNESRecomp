@@ -1,0 +1,155 @@
+From 92016b9e23b2a990224644c2860c18c7269816ea Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 12:28:14 -0600
+Subject: [PATCH] Mods page text through the launcher localization; load
+ language at start-up
+
+Manifest names, descriptions, groups, labels and statuses are passed through
+launcher_i18n_text() in the launcher provider, so translations a game
+registers apply to the Mods page. The host loads the player's launcher
+language right after config.ini, so in-game menus follow it even when the
+launcher is skipped.
+
+---
+ runner/src/desktop/host_main.c |  7 ++++++
+ runner/src/mod_runtime.cpp     | 41 ++++++++++++++++++++++------------
+ 2 files changed, 34 insertions(+), 14 deletions(-)
+
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index 1f27fcb..1b01b22 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -82,6 +82,7 @@
+ #endif
+ 
+ #if defined(RECOMP_LAUNCHER)
++void launcher_i18n_load_config(const char *config_path);   /* recomp-ui */
+ #include "recomp_launcher.h"   /* recomp_launcher_run_window() */
+ #include "launcher_video.h"
+ #include "launcher_profile.h"  /* launcher_profile_apply("snes", &gi) */
+@@ -3223,6 +3224,12 @@ int snesrecomp_desktop_main(const SnesDesktopHostGame *game, int argc, char **ar
+   ConfigSetPadSeats(HostConfiguredSeats());
+   ParseConfigFile(config_file);
+   g_active_config_file = config_file;
++#if defined(RECOMP_LAUNCHER)
++  /* The player's language ([General] LauncherLanguage) also drives in-game
++   * menus that use the launcher's localization, even when the launcher is
++   * skipped. */
++  launcher_i18n_load_config(config_file);
++#endif
+   /* Local overrides (gitignored). Last parser to set a key wins. */
+   {
+     FILE *f_local = fopen("config.local.ini", "rb");
+diff --git a/runner/src/mod_runtime.cpp b/runner/src/mod_runtime.cpp
+index 58c0955..5599e83 100644
+--- a/runner/src/mod_runtime.cpp
++++ b/runner/src/mod_runtime.cpp
+@@ -26,6 +26,10 @@
+ 
+ namespace fs = std::filesystem;
+ 
++#if defined(RECOMP_LAUNCHER)
++extern "C" const char* launcher_i18n_text(const char* english);   /* recomp-ui */
++#endif
++
+ namespace SNESRecomp {
+ namespace {
+ 
+@@ -2348,6 +2352,15 @@ void copy_text(char (&out)[N], const std::string& value) {
+     std::snprintf(out, N, "%s", value.c_str());
+ }
+ 
++/* Player-facing manifest text (names, descriptions, groups, labels) goes
++ * through the launcher's localization: manifests are written in English and
++ * a game or mod registers translations (launcher_i18n_register), so the Mods
++ * page follows the language picked in the launcher. Ids never change. */
++template <size_t N>
++void copy_ui_text(char (&out)[N], const std::string& value) {
++    std::snprintf(out, N, "%s", launcher_i18n_text(value.c_str()));
++}
++
+ std::vector<const Package*> selected_packages(Runtime& runtime) {
+     std::vector<const Package*> result;
+     for (const auto& [id, versions] : runtime.packages) {
+@@ -2392,9 +2405,9 @@ int provider_package_get(void*, int index,
+     std::memset(out, 0, sizeof(*out));
+     copy_text(out->id, package.id);
+     copy_text(out->version, package.version);
+-    copy_text(out->name, package.name);
++    copy_ui_text(out->name, package.name);
+     copy_text(out->author, package.author);
+-    copy_text(out->description, package.description);
++    copy_ui_text(out->description, package.description);
+     copy_text(out->license, package.license);
+     out->removable = !package.builtin_diagnostic;
+     out->option_count = 0;
+@@ -2412,7 +2425,7 @@ int provider_package_get(void*, int index,
+         [&](const Diagnostic& diagnostic) {
+             return diagnostic.package_id == package.id;
+         });
+-    copy_text(out->status, out->has_error ? "Needs attention" :
++    copy_ui_text(out->status, out->has_error ? "Needs attention" :
+                    (out->enabled ? "Enabled" : "Installed"));
+     return 1;
+ }
+@@ -2571,11 +2584,11 @@ int provider_feature_get(void*, int index,
+     copy_text(out->id, feature.id);
+     copy_text(out->package_id, package.id);
+     copy_text(out->package_version, package.version);
+-    copy_text(out->package_name, package.name);
+-    copy_text(out->name, feature.name);
++    copy_ui_text(out->package_name, package.name);
++    copy_ui_text(out->name, feature.name);
+     copy_text(out->author, package.author);
+-    copy_text(out->description, feature.description);
+-    copy_text(out->group, feature.group);
++    copy_ui_text(out->description, feature.description);
++    copy_ui_text(out->group, feature.group);
+     out->enabled = feature_enabled(state(), package, feature);
+     if (package.builtin_diagnostic) {
+         out->hidden = !tier2_capture_exposed();
+@@ -2592,7 +2605,7 @@ int provider_feature_get(void*, int index,
+             return diagnostic.package_id == package.id &&
+                    diagnostic.feature_id == feature.id;
+         });
+-    copy_text(out->status, out->has_error ? "Needs attention" :
++    copy_ui_text(out->status, out->has_error ? "Needs attention" :
+                    (out->enabled ? "Enabled" : "Disabled"));
+     if (package.builtin_diagnostic) {
+         std::string status = out->enabled ? "Capturing" : "Disabled";
+@@ -2616,9 +2629,9 @@ int provider_feature_option_get(
+     const Feature& feature = *find_feature(*package, feature_id);
+     std::memset(out, 0, sizeof(*out));
+     copy_text(out->id, option.id);
+-    copy_text(out->label, option.label);
+-    copy_text(out->description, option.description);
+-    copy_text(out->group, option.group);
++    copy_ui_text(out->label, option.label);
++    copy_ui_text(out->description, option.description);
++    copy_ui_text(out->group, option.group);
+     copy_text(out->value, option_value(state(), *package, feature, option));
+     copy_text(out->default_value, option.default_value);
+     out->type = option.type == OptionType::Boolean
+@@ -2645,7 +2658,7 @@ int provider_feature_choice_get(
+     if (!option || (size_t)index >= option->choices.size()) return 0;
+     std::memset(out, 0, sizeof(*out));
+     copy_text(out->value, option->choices[(size_t)index].value);
+-    copy_text(out->label, option->choices[(size_t)index].label);
++    copy_ui_text(out->label, option->choices[(size_t)index].label);
+     return 1;
+ }
+ 
+@@ -2758,8 +2771,8 @@ int provider_feature_resource_get(void*, const char* package_id,
+     const bool verified = validate_resource_file(resource, path, &status);
+     std::memset(out, 0, sizeof(*out));
+     copy_text(out->id, resource.id);
+-    copy_text(out->label, resource.label);
+-    copy_text(out->description, resource.description);
++    copy_ui_text(out->label, resource.label);
++    copy_ui_text(out->description, resource.description);
+     copy_text(out->path, path);
+     copy_text(out->status, status);
+     copy_text(out->format, resource.format);
+-- 
+2.43.0
+

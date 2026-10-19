@@ -1,0 +1,119 @@
+From a6f5a9dc475750376b69bb2447c88c7978ce0084 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 17:25:51 -0600
+Subject: [PATCH] desktop host: title overlays can keep the music playing
+
+SnesDesktopHostGame.title_overlay_keeps_music: while the overlay is up the
+SPC is fed by wall time through RtlApuIdleRun(), which shifts the CPU->APU
+clock mapping by the cycles it ran, so the guest resumes exactly where it
+was relative to the sound chip.
+
+---
+ runner/src/common_rtl.c        | 14 ++++++++++++++
+ runner/src/common_rtl.h        |  5 +++++
+ runner/src/desktop/host_main.c | 21 +++++++++++++++++++--
+ runner/src/desktop/host_main.h |  4 ++++
+ 4 files changed, 42 insertions(+), 2 deletions(-)
+
+diff --git a/runner/src/common_rtl.c b/runner/src/common_rtl.c
+index a56966b..6cbf9c8 100644
+--- a/runner/src/common_rtl.c
++++ b/runner/src/common_rtl.c
+@@ -2203,6 +2203,20 @@ static void rtl_sync_apu_frame_boundary(void) {
+ #endif
+ }
+ 
++void RtlApuIdleRun(uint32_t apu_cycles) {
++  if (!g_snes || !g_snes->apu || !apu_cycles) return;
++  RtlApuLock();
++  Apu *apu = g_snes->apu;
++  audio_trace_set_producer(AUDIO_TRACE_PRODUCER_CPU);
++  for (uint32_t i = 0; i < apu_cycles; i++) apu_cycle(apu);
++  audio_trace_set_producer(AUDIO_TRACE_PRODUCER_UNKNOWN);
++  apu->portTargetAnchor += apu_cycles;
++  apu->portLastTarget += apu_cycles;
++  for (uint32_t q = apu->portQHead; q != apu->portQTail; q++)
++    apu->portQueue[q & (APU_PORT_QUEUE_LEN - 1)].target_cycle += apu_cycles;
++  RtlApuUnlock();
++}
++
+ void RtlSetSpeculativeFrame(bool on) { g_rtl_speculative_frame = on; }
+ bool RtlSpeculativeFrame(void) { return g_rtl_speculative_frame; }
+ 
+diff --git a/runner/src/common_rtl.h b/runner/src/common_rtl.h
+index 40d7f2b..dcaca2e 100644
+--- a/runner/src/common_rtl.h
++++ b/runner/src/common_rtl.h
+@@ -349,6 +349,11 @@ void RtlApplyExecutionState(void);
+ /* Host timeline invalidation after a successful load or reset. */
+ uint64_t RtlStateGeneration(void);
+ size_t RtlSaveSnapshotToMemory(void *data, size_t capacity);
++/* Run the SPC for `apu_cycles` while the guest CPU is frozen (a host menu
++ * over a paused game), so the song keeps playing. The CPU->APU clock mapping
++ * is shifted by the same amount, so when the guest resumes the SPC is exactly
++ * as far ahead of it as before: no catch-up, no silence, no handshake moved. */
++void RtlApuIdleRun(uint32_t apu_cycles);
+ bool RtlLoadSnapshotFromMemory(const void *data, size_t size);
+ 
+ /*
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index 1b01b22..62f1902 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -1984,11 +1984,27 @@ static void RunTitleOverlayLoop(bool *running) {
+   host_report_breadcrumb("title overlay OPEN - guest frozen until it closes");
+   g_overlay_modal = true;
+   g_title_overlay_active = true;
+-  SetAudioPaused(true);
++  const bool music = g_game->title_overlay_keeps_music && !g_paused;
++  SetAudioPaused(!music);
++  uint64_t music_last = SDL_GetTicks();
++  double music_debt = 0.0;
++  uint64_t music_cycles = 0;
+   while (*running && g_game->title_overlay_is_open && g_game->title_overlay_is_open()) {
+     PumpOverlayEvents(running, g_game->title_overlay_handle_key);
+     if (g_game->title_overlay_poll_nav)
+       g_game->title_overlay_poll_nav(OverlayNavInputs(), SDL_GetTicks());
++    if (music) {
++      /* Feed the SPC by wall time (17088 APU cycles per 1/60.0988 s), at
++       * most a few frames at once after a stall. */
++      uint64_t now = SDL_GetTicks();
++      music_debt += (double)(now - music_last) * (17088.0 * 60.0988 / 1000.0);
++      music_last = now;
++      if (music_debt > 17088.0 * 4) music_debt = 17088.0 * 4;
++      uint32_t run = (uint32_t)music_debt;
++      music_debt -= run;
++      RtlApuIdleRun(run);
++      music_cycles += run;
++    }
+     PresentFrozenWithOverlay();
+     SDL_Delay(8);
+     frames++;
+@@ -1999,7 +2015,8 @@ static void RunTitleOverlayLoop(bool *running) {
+   SetAudioPaused(g_paused);
+   OverlayNoteClosed();
+   if (g_game->title_overlay_closed) g_game->title_overlay_closed();
+-  host_report_breadcrumb("title overlay CLOSED after %u pumps - guest resuming", frames);
++  host_report_breadcrumb("title overlay CLOSED after %u pumps (%llu SPC cycles of music) - guest resuming",
++                         frames, (unsigned long long)music_cycles);
+ }
+ 
+ /* Save-state browser's modal pump. The guest is FROZEN throughout: this loop
+diff --git a/runner/src/desktop/host_main.h b/runner/src/desktop/host_main.h
+index 4699c7e..1ef8e5c 100644
+--- a/runner/src/desktop/host_main.h
++++ b/runner/src/desktop/host_main.h
+@@ -215,6 +215,10 @@ typedef struct SnesDesktopHostGame {
+   void (*title_overlay_poll_nav)(uint32_t inputs, uint32_t now_ms);
+   int  (*title_overlay_image)(const uint32_t **panel, int *w, int *h);
+   void (*title_overlay_closed)(void);
++  /* Nonzero: the song keeps playing under the title overlay (the SPC runs on
++   * its own, RtlApuIdleRun) instead of the audio being paused with the
++   * guest. For an in-game pause menu that should feel like the game's own. */
++  int title_overlay_keeps_music;
+ } SnesDesktopHostGame;
+ 
+ /* The whole program. Returns the process exit code. */
+-- 
+2.43.0
+

@@ -1,0 +1,42 @@
+From cc9d444af4e37b597df0943b85984ea64ccafac2 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 01:07:45 -0600
+Subject: [PATCH] desktop host: SNESRECOMP_DUMP_WIDE writes the whole widened
+ field on script dumps
+
+---
+ runner/src/desktop/host_main.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index f3bac34..1f27fcb 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -938,6 +938,24 @@ static void ScriptDump(const char *tag, unsigned frame) {
+   int rc = snes_state_dump(dir ? dir : "", tag, g_my_pixels, pitch, g_ws_extra,
+                            g_snes_height, frame);
+   fprintf(stderr, "script f=%u dump %s %s\n", frame, tag, rc ? "partial" : "ok");
++  /* The state dump keeps the native 256 columns (for frame diffs); with a
++   * widened field, SNESRECOMP_DUMP_WIDE=1 also writes the whole field. */
++  const char *wide = getenv("SNESRECOMP_DUMP_WIDE");
++  if (wide && *wide && *wide != '0' && g_game->native_widescreen && dir) {
++    char path[1024];
++    snprintf(path, sizeof path, "%s/%s.wide.ppm", dir, tag);
++    FILE *f = fopen(path, "wb");
++    if (f) {
++      fprintf(f, "P6\n%d %d\n255\n", g_snes_width, g_snes_height);
++      for (int y = 0; y < g_snes_height; y++)
++        for (int x = 0; x < g_snes_width; x++) {
++          const uint8_t *px = g_my_pixels + (size_t)y * pitch + (size_t)x * 4;
++          uint8_t rgb[3] = { px[2], px[1], px[0] };
++          fwrite(rgb, 1, 3, f);
++        }
++      fclose(f);
++    }
++  }
+ }
+ 
+ static uint32 TickScript(void) {
+-- 
+2.43.0
+

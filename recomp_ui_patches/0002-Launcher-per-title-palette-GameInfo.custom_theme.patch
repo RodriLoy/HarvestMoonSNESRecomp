@@ -1,0 +1,49 @@
+From 8c278833b2d7355792a66d673ae68064162c78a1 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 13:08:02 -0600
+Subject: [PATCH] Launcher: per-title palette (GameInfo.custom_theme)
+
+A title can hand the launcher its own LauncherTheme while keeping the shared
+layout. NULL keeps the console theme, so older hosts are unchanged.
+
+---
+ src/common/launcher_ng_capi.c | 4 +++-
+ src/recomp_launcher.h         | 7 +++++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/src/common/launcher_ng_capi.c b/src/common/launcher_ng_capi.c
+index 25f2c22..5972bea 100644
+--- a/src/common/launcher_ng_capi.c
++++ b/src/common/launcher_ng_capi.c
+@@ -222,7 +222,9 @@ int recomp_launcher_run_window(const char* window_title,
+     const RecompLauncherCSettings before = model.s;
+     launcher_boot_timing_mark("rui:model+binds_ready");
+ 
+-    LauncherTheme theme = launcher_theme_by_name(game ? game->theme : NULL);
++    LauncherTheme theme = (game && game->custom_theme)
++        ? *(const LauncherTheme*)game->custom_theme
++        : launcher_theme_by_name(game ? game->theme : NULL);
+ 
+     LngAction act = launcher_backend_run(&plat, &model, &theme);
+ 
+diff --git a/src/recomp_launcher.h b/src/recomp_launcher.h
+index c3ff46e..57264e2 100644
+--- a/src/recomp_launcher.h
++++ b/src/recomp_launcher.h
+@@ -2376,6 +2376,13 @@ typedef struct RecompLauncherCGameInfo {
+     const char* const* texture_filter_labels;
+     const int*         texture_filter_values;
+     int                num_texture_filters;
++
++    /* ---- per-title palette (appended) -------------------------------------
++     * Optional `const LauncherTheme*` (common/launcher_theme.h) that replaces
++     * the console theme named by `theme`, so a title can wear its own colors
++     * while keeping the shared layout. NULL (every older host) => the console
++     * theme, exactly as before. Borrowed for the launcher's lifetime. */
++    const void* custom_theme;
+ } RecompLauncherCGameInfo;
+ 
+ /* RecompLauncherCGameInfo carries texture_filter_labels / _values. */
+-- 
+2.43.0
+

@@ -1,0 +1,28 @@
+From 045e41bb3ffb9d26e0e726921e47b6c778f32f20 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 13:08:02 -0600
+Subject: [PATCH] desktop host: accept [General] LauncherLanguage in config.ini
+
+The key belongs to the launcher's localization; the host's parser no longer
+reports it as unparseable.
+
+---
+ runner/src/desktop/mmx_config.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/runner/src/desktop/mmx_config.c b/runner/src/desktop/mmx_config.c
+index 2743775..984152b 100644
+--- a/runner/src/desktop/mmx_config.c
++++ b/runner/src/desktop/mmx_config.c
+@@ -604,6 +604,8 @@ static bool HandleIniConfig(int section, const char *key, char *value) {
+       return ParseBool(value, &g_config.enable_snes9x_oracle);
+     } else if (StringEqualsNoCase(key, "SkipLauncher")) {
+       return ParseBool(value, &g_config.skip_launcher);
++    } else if (StringEqualsNoCase(key, "LauncherLanguage")) {
++      return true;  /* owned by the launcher (launcher_i18n_load_config) */
+     }
+   } else if (section == 6) {
+     if (StringEqualsNoCase(key, "PlayerName")) {
+-- 
+2.43.0
+

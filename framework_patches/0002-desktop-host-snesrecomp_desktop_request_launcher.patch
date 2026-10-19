@@ -1,0 +1,41 @@
+From 48b3e6437c2ace0aa4e3fc0f8625ae9fa66ec990 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Sun, 18 Oct 2026 20:18:18 -0600
+Subject: [PATCH 2/3] desktop host: snesrecomp_desktop_request_launcher()
+
+---
+ runner/src/desktop/host_main.c | 3 +++
+ runner/src/desktop/host_main.h | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index 5cc5242..f3bac34 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -414,6 +414,9 @@ static struct RendererFuncs g_renderer_funcs;
+ static int g_savestate_menu_hotkey;
+ static int g_rewind_hotkey;
+ static int g_open_launcher_hotkey;   /* in_game_launcher only */
++/* A title asking for the launcher from its own UI (e.g. a title-screen
++ * OPTIONS entry): the same path as the OpenLauncher hotkey. */
++void snesrecomp_desktop_request_launcher(void) { g_open_launcher_hotkey = 1; }
+ static uint64_t g_state_generation;
+ 
+ /* The last field actually presented, kept so an overlay can freeze the guest
+diff --git a/runner/src/desktop/host_main.h b/runner/src/desktop/host_main.h
+index 75404de..4699c7e 100644
+--- a/runner/src/desktop/host_main.h
++++ b/runner/src/desktop/host_main.h
+@@ -225,6 +225,9 @@ int snesrecomp_desktop_main(const SnesDesktopHostGame *game, int argc, char **ar
+ int snesrecomp_desktop_frame_width(void);
+ int snesrecomp_desktop_frame_height(void);
+ void snesrecomp_desktop_set_widescreen(int enabled);
++/* Open the in-game launcher at the next host iteration, as the OpenLauncher
++ * hotkey does. Only effective for a host built with in_game_launcher. */
++void snesrecomp_desktop_request_launcher(void);
+ 
+ /* Ask the host to reset its pacing clock at the next opportunity (a title
+  * that just changed its presentation settings). */
+-- 
+2.43.0
+

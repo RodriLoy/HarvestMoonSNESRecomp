@@ -1,0 +1,65 @@
+From fcdbf0babc5f12c18892e4d89fb4188da7fdc367 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 00:17:03 -0600
+Subject: [PATCH 3/3] post_mortem: architecture-neutral CONTEXT registers
+ (Windows on ARM64)
+
+---
+ runner/src/desktop/post_mortem.c | 28 +++++++++++++++++++++-------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/runner/src/desktop/post_mortem.c b/runner/src/desktop/post_mortem.c
+index 6757b0d..6d532f1 100644
+--- a/runner/src/desktop/post_mortem.c
++++ b/runner/src/desktop/post_mortem.c
+@@ -561,16 +561,30 @@ static void dump_tripwires_json(FILE *f) {
+ 
+ #ifdef _WIN32
+ 
++/* Instruction / stack / frame pointer of a CONTEXT, per host architecture
++ * (Windows on ARM64 names them Pc/Sp/Fp and walks as ARM64). */
++#if defined(_M_ARM64) || defined(__aarch64__)
++#define PM_CTX_PC(c) ((c)->Pc)
++#define PM_CTX_SP(c) ((c)->Sp)
++#define PM_CTX_FP(c) ((c)->Fp)
++#define PM_MACHINE IMAGE_FILE_MACHINE_ARM64
++#else
++#define PM_CTX_PC(c) ((c)->Rip)
++#define PM_CTX_SP(c) ((c)->Rsp)
++#define PM_CTX_FP(c) ((c)->Rbp)
++#define PM_MACHINE IMAGE_FILE_MACHINE_AMD64
++#endif
++
+ /* Walk one thread's host stack, write up to `max_frames` frames as
+  * comma-separated JSON objects to `f`. Caller wraps in []. */
+ static void dump_thread_stack_json(FILE *f, HANDLE proc, HANDLE thr,
+                                    CONTEXT *ctx, int max_frames) {
+     STACKFRAME64 frame;
+     memset(&frame, 0, sizeof(frame));
+-    DWORD machine = IMAGE_FILE_MACHINE_AMD64;
+-    frame.AddrPC.Offset    = ctx->Rip; frame.AddrPC.Mode    = AddrModeFlat;
+-    frame.AddrFrame.Offset = ctx->Rbp; frame.AddrFrame.Mode = AddrModeFlat;
+-    frame.AddrStack.Offset = ctx->Rsp; frame.AddrStack.Mode = AddrModeFlat;
++    DWORD machine = PM_MACHINE;
++    frame.AddrPC.Offset    = PM_CTX_PC(ctx); frame.AddrPC.Mode    = AddrModeFlat;
++    frame.AddrFrame.Offset = PM_CTX_FP(ctx); frame.AddrFrame.Mode = AddrModeFlat;
++    frame.AddrStack.Offset = PM_CTX_SP(ctx); frame.AddrStack.Mode = AddrModeFlat;
+     char symbuf[sizeof(SYMBOL_INFO) + 256];
+     SYMBOL_INFO *sym = (SYMBOL_INFO *)symbuf;
+     memset(symbuf, 0, sizeof(symbuf));
+@@ -682,9 +696,9 @@ static void dump_all_threads_json(FILE *f, void *fault_info_void) {
+                 "\"rip\":%llu,\"rsp\":%llu,\"rbp\":%llu,"
+                 "\"frames\":[",
+                 (unsigned long)tid, esc_name,
+-                (unsigned long long)thr_ctx.Rip,
+-                (unsigned long long)thr_ctx.Rsp,
+-                (unsigned long long)thr_ctx.Rbp);
++                (unsigned long long)PM_CTX_PC(&thr_ctx),
++                (unsigned long long)PM_CTX_SP(&thr_ctx),
++                (unsigned long long)PM_CTX_FP(&thr_ctx));
+             dump_thread_stack_json(f, proc, thr, &thr_ctx, 24);
+             fputs("]}", f);
+ 
+-- 
+2.43.0
+
