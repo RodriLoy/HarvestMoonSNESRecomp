@@ -31,7 +31,6 @@
 #include "hm_default_config.h"
 #include "hm_pause.h"
 #include "hm_widescreen.h"
-#include "decomp/hm_decomp.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -45,13 +44,6 @@
 #ifndef SNES_GAME_VERSION
 #define SNES_GAME_VERSION "dev"
 #endif
-
-static void HmAfterRunFrame(const SnesDesktopHostFrameStats *stats)
-{
-  (void)stats;
-  static unsigned frame;
-  hm_decomp_after_frame(++frame);
-}
 
 static const SnesDesktopHostGame kGameHost = {
     .display_name        = "Harvest Moon",
@@ -85,8 +77,6 @@ static const SnesDesktopHostGame kGameHost = {
     .native_widescreen   = 1,
     .prepare_frame       = hm_ws_prepare_frame,
     .begin_sim_frame     = hm_ws_begin_sim_frame,
-    /* Decompilation test hook (HM_DECOMP_FUZZ), idle otherwise. */
-    .after_run_frame     = HmAfterRunFrame,
 };
 
 #ifndef __ANDROID__

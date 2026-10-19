@@ -47,12 +47,23 @@ add_executable(HarvestMoonSNESRecomp
     src/hm_pause.c
     src/hm_title.c
     src/hm_widescreen.c
-    src/decomp/hm_decomp.c
-    src/decomp/rng.c
-    src/decomp/stock.c
-    src/decomp/stamina.c
-    src/decomp/animals.c
 )
+
+# Generic build extension points (empty by default). Other projects can build
+# this game with their own generated code and extra sources without editing
+# this file, e.g. the separate decompilation project (HarvestMoonDecomp):
+#   HM_GEN_DIR             generated code directory (default: src/gen)
+#   HM_EXTRA_SOURCES       extra .c files compiled into the executable
+#   HM_EXTRA_INCLUDE_DIRS  extra include directories for them
+set(HM_GEN_DIR "${CMAKE_SOURCE_DIR}/src/gen" CACHE PATH "Generated code directory")
+set(HM_EXTRA_SOURCES "" CACHE STRING "Extra sources compiled into the game")
+set(HM_EXTRA_INCLUDE_DIRS "" CACHE STRING "Include directories for HM_EXTRA_SOURCES")
+if(HM_EXTRA_SOURCES)
+  target_sources(HarvestMoonSNESRecomp PRIVATE ${HM_EXTRA_SOURCES})
+endif()
+if(HM_EXTRA_INCLUDE_DIRS)
+  target_include_directories(HarvestMoonSNESRecomp PRIVATE ${HM_EXTRA_INCLUDE_DIRS})
+endif()
 
 # ROM identity. rom_identity.txt is the one place the digests live: the build
 # turns it into snesrecomp_rom_identity.h (SNESRECOMP_ROM_EXPECTED_SHA256 and
@@ -68,7 +79,7 @@ snesrecomp_rom_identity(HarvestMoonSNESRecomp ${CMAKE_SOURCE_DIR}/rom_identity.t
 # That is what release zips contain; the player's machine produces the
 # playable binary from their own ROM. Without the option an empty src/gen/ is
 # still a hard error (the framework owns the message).
-snesrecomp_target_generated_code(HarvestMoonSNESRecomp ${CMAKE_SOURCE_DIR}/src/gen)
+snesrecomp_target_generated_code(HarvestMoonSNESRecomp ${HM_GEN_DIR})
 
 # The mod catalog. This names WHERE the packages are; the framework owns the
 # layout they are staged into beside the executable, and stages them on every
