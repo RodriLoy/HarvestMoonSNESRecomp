@@ -28,6 +28,7 @@
 #include "host_main.h"
 #include "game_rtl.h"
 #include "snesrecomp_rom_identity.h"  /* generated from rom_identity.txt */
+#include "hm_default_config.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -56,6 +57,12 @@ static const SnesDesktopHostGame kGameHost = {
     /* Battery-backed SRAM shows the launcher's SAVES panel. Leave NULL for a
      * title without one. The path is exe-relative. */
     .sram_path           = "saves/save.srm",
+    /* Esc (or Select+L3) opens the full launcher over the running game:
+     * cheats, quality of life, display, input. Mod changes resume through a
+     * temporary save state. */
+    .in_game_launcher    = 1,
+    .rewind_settings     = 1,
+    .default_config_ini  = kHmDefaultConfigIni,
 };
 
 #ifndef __ANDROID__
