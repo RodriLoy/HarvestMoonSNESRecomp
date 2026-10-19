@@ -9,6 +9,8 @@
 #include "recomp_launcher.h"
 #include "common/launcher_theme.h"
 #include "hm_launcher_theme.h"
+#include "desktop/sdl_compat.h"
+#include <stdio.h>
 
 static LngColor hex(unsigned rgb) {
   return lng_rgba(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f,
@@ -16,6 +18,22 @@ static LngColor hex(unsigned rgb) {
 }
 
 static LauncherTheme g_theme;
+
+/* Your own cover picture: put portada.png / .jpg / .tga next to the other
+ * launcher images (assets/img/) and it replaces the drawn artwork. Nothing is
+ * shipped here; the file is yours. */
+static const char *user_cover(void) {
+  static const char *kNames[] = { "assets/img/portada.png", "assets/img/portada.jpg",
+                                  "assets/img/portada.jpeg", "assets/img/portada.tga" };
+  const char *base = SDL_GetBasePath();
+  for (unsigned i = 0; i < sizeof kNames / sizeof kNames[0]; i++) {
+    char full[1024];
+    snprintf(full, sizeof full, "%s%s", base ? base : "", kNames[i]);
+    FILE *f = fopen(full, "rb");
+    if (f) { fclose(f); return kNames[i]; }
+  }
+  return NULL;
+}
 
 void hm_configure_launcher(struct RecompLauncherCGameInfo *gi) {
   LauncherTheme t = launcher_theme_default(); /* spacing, fonts, sizes */
@@ -42,6 +60,8 @@ void hm_configure_launcher(struct RecompLauncherCGameInfo *gi) {
   /* Launcher window icon on Linux/macOS (Windows uses the .exe's own icon,
    * src/hm_app.rc). Relative paths resolve against the working directory,
    * which the host sets to the program's folder. */
+  const char *cover = user_cover();
+  if (cover) gi->boxart_path = cover;
   if (!gi->window_icon_path || !gi->window_icon_path[0])
     gi->window_icon_path = "assets/img/icon.png";
 }
