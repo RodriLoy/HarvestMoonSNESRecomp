@@ -12,6 +12,7 @@
 #include "common_rtl.h"
 #include "mod_runtime.h"
 #include "hm_ram.h"
+#include "hm_title.h"
 
 #define PKG "harvestmoon.qol"
 
@@ -82,8 +83,11 @@ static void on_slow_clock(void)
   hook_frame();
 }
 
+static void on_title_options(void) { hm_title_set_enabled(true); }
+
 static void reset_qol(void)
 {
+  hm_title_set_enabled(false);
   bool hooked = s.frame_hooked;
   memset(&s, 0, sizeof s);
   s.frame_hooked = hooked;
@@ -94,4 +98,5 @@ SNES_MOD_CONSTRUCTOR(register_hm_qol)
   snes_mod_register_reset_callback(reset_qol);
   snes_mod_register_activation_plugin("harvestmoon.qol.fast_text", on_fast_text);
   snes_mod_register_activation_plugin("harvestmoon.qol.day_length", on_slow_clock);
+  snes_mod_register_activation_plugin("harvestmoon.qol.title_options", on_title_options);
 }

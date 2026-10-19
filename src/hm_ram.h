@@ -97,6 +97,10 @@ enum {
 #define HM_DOG_HUGS         0x11F52 /* 16b */
 #define HM_COW_N            0x11F0A /* 8b */
 
+/* ── Title screen (CODE_84C458, active while inputstate == 4 && $95 == 5) ── */
+#define HM_TITLE_CURSOR     0x0098D /* 8b: 0 CONTINUE, 1 START, 2 HOW TO PLAY */
+#define HM_CGRAM_SHADOW     0x10900 /* 512 bytes: CGRAM copy NMI uploads */
+
 /* ── Misc ── */
 #define HM_RNG_STATE        0x00100 /* 3 bytes, GetRNG $83:8138 (LFSR) */
 #define HM_RNG_LAST         0x000DE /* last value handed to event scripts */

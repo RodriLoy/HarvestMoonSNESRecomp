@@ -35,6 +35,7 @@
 #include "game_rtl.h"
 
 #include "beam_frame_driver.h"
+#include "hm_title.h"
 
 void GameRunOneFrame(void)
 {
@@ -55,6 +56,17 @@ void GameSessionReset(void)
     snes_beam_frame_driver_reset();
 }
 
+static bool GameFrameBegin(uint32_t *inputs)
+{
+  hm_title_frame_begin(inputs);   /* title-screen OPTIONS entry */
+  return true;
+}
+
+static void GameFrameEnd(void)
+{
+  hm_title_frame_end();
+}
+
 const RtlGameInfo kGameInfo = {
     .title = "harvestmoon",
     .initialize = NULL,
@@ -62,4 +74,6 @@ const RtlGameInfo kGameInfo = {
     .draw_ppu_frame = &GameDrawPpuFrame,
     .save_name_prefix = "save",
     .session_reset = &GameSessionReset,
+    .frame_begin = &GameFrameBegin,
+    .frame_end = &GameFrameEnd,
 };

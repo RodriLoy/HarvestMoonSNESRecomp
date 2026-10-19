@@ -67,3 +67,14 @@ default_enabled = true
 [[plugin]]
 feature = "pause_menu"
 id = "harvestmoon.qol.pause_menu"
+
+[[feature]]
+id = "title_options"
+name = "OPTIONS en la pantalla de título"
+description = "Agrega una cuarta opción, OPTIONS, debajo de HOW TO PLAY, que abre este menú de opciones."
+group = "Calidad de vida"
+default_enabled = true
+
+[[plugin]]
+feature = "title_options"
+id = "harvestmoon.qol.title_options"
