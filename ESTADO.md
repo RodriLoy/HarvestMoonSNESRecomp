@@ -1,8 +1,8 @@
 # Estado de la recompilación (actualizado el 19-oct-2026)
 
 Este archivo es la "memoria" del proyecto: qué está hecho, cómo se hace cada
-cosa y qué falta, para retomarlo sin perder nada. Por ahora el trabajo sigue
-en el proyecto de descompilación (HarvestMoonDecomp).
+cosa y qué falta, para retomarlo sin perder nada. La descompilación está
+pausada en su propio proyecto (ver HarvestMoonDecomp/ESTADO.md).
 
 ## Versión actual: 0.6
 
