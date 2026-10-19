@@ -2,8 +2,8 @@
 # (tools/regen.sh and the launcher's Generate & Rebuild).
 schema = 1
 
-# Post-generation overrides (see the script's docstring): today, only the
-# widescreen sprite clip in PrepareOAMData.
+# Post-generation overrides (see the script's docstring): the widescreen
+# sprite clip, the endless game's ending check and the diary year ordinal.
 [[postprocess]]
 script = "tools/apply_overrides.py"
 args = ["--gen-dir", "{out_dir}"]

@@ -83,6 +83,17 @@ feature = "title_options"
 id = "harvestmoon.qol.title_options"
 
 [[feature]]
+id = "endless"
+name = "Endless game"
+description = "The game no longer stops after Year 3: you watch the ending, then wake up on Summer 30 and keep farming through Year 4, 5 and beyond."
+group = "Quality of life"
+default_enabled = true
+
+[[plugin]]
+feature = "endless"
+id = "harvestmoon.qol.endless"
+
+[[feature]]
 id = "widescreen"
 name = "Widescreen (16:9)"
 description = "Shows more of the map at the sides instead of black bars. At a map's edge, in small rooms and on the title screen it looks like the original (4:3)."

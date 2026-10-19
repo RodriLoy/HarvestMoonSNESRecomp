@@ -32,6 +32,7 @@
 #include "hm_pause.h"
 #include "hm_widescreen.h"
 #include "hm_launcher_theme.h"
+#include "hm_endless.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -45,6 +46,11 @@
 #ifndef SNES_GAME_VERSION
 #define SNES_GAME_VERSION "dev"
 #endif
+
+static void hm_after_run_frame(const SnesDesktopHostFrameStats *stats) {
+  (void)stats;
+  hm_endless_after_frame();
+}
 
 static const SnesDesktopHostGame kGameHost = {
     .display_name        = "Harvest Moon",
@@ -80,6 +86,8 @@ static const SnesDesktopHostGame kGameHost = {
     .begin_sim_frame     = hm_ws_begin_sim_frame,
     /* Launcher look: Harvest Moon colors (src/hm_launcher_theme.c). */
     .configure_launcher  = hm_configure_launcher,
+    /* Endless game (quality-of-life feature): src/hm_endless.c. */
+    .after_run_frame     = hm_after_run_frame,
 };
 
 #ifndef __ANDROID__
