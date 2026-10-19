@@ -50,6 +50,9 @@ enum {
 /* ── Player ── */
 #define HM_MAX_STAMINA      0x00917 /* 8b */
 #define HM_CURRENT_STAMINA  0x00918 /* 8b: 100 at the start of a diary */
+#define HM_EXHAUSTION       0x0096C /* 8b: 0..3 tiredness stage (ChangeStamina) */
+#define HM_GAME_STATE       0x000D2 /* 16b flags; bit 3 = out of stamina */
+#define HM_ANIM_REQUEST     0x00901 /* 16b: player animation to play next */
 #define HM_MONEY            0x11F04 /* 24b binary; AddMoney $83:B1C9 caps it */
 #define HM_MONEY_MAX        999999u /* the cap AddMoney itself enforces */
 #define HM_SHIPPING_MONEY   0x11F07 /* 24b, paid out overnight */
@@ -93,6 +96,8 @@ enum {
                                      * (its branch labels in HM-Decomp are
                                      * swapped). Tested thresholds: 200
                                      * heart event, 450/650 children. */
+#define HM_COW_DATA         0x0C1C6 /* 16 bytes per cow (GetsCowPointer) */
+#define HM_CHICKEN_DATA     0x0C286 /* 8 bytes per chicken (GetChickenPointer) */
 #define HM_HAPPINESS        0x11F33 /* 16b, AddPlayerHappiness caps at 999 */
 #define HM_DOG_HUGS         0x11F52 /* 16b */
 #define HM_COW_N            0x11F0A /* 8b */

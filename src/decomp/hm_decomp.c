@@ -8,9 +8,29 @@
 
 #include "cpu_state.h"
 #include "hm_decomp.h"
+#include "../hm_ram.h"
+
+#define W16(a, lo, hi) { a, 2, lo, hi }
+#define B8(a, lo, hi)  { a, 1, lo, hi }
 
 const HmDecompFn g_hm_decomp_fns[] = {
-  { "GetRNG", hm_GetRNG, HM_OUT_A | HM_OUT_C, "src/decomp/rng.c" },
+  { "GetRNG", hm_GetRNG, HM_OUT_A | HM_OUT_C, "src/decomp/rng.c",
+    0x838138, 1, 0, 0, 0xFFFF,
+    { B8(HM_RNG_STATE, 0, 255), B8(HM_RNG_STATE + 1, 0, 255), B8(HM_RNG_STATE + 2, 0, 255) } },
+  { "AddWood", hm_AddWood, HM_OUT_A | HM_OUT_C, "src/decomp/stock.c",
+    0x83B224, 0, 0, 0, 0xFFFF, { W16(HM_STORED_WOOD, 0, 1100) } },
+  { "AddGrass", hm_AddGrass, HM_OUT_A | HM_OUT_C, "src/decomp/stock.c",
+    0x83B253, 0, 0, 0, 0xFFFF, { W16(HM_STORED_GRASS, 0, 1100) } },
+  { "AddPlayerHappiness", hm_AddPlayerHappiness, HM_OUT_A | HM_OUT_C, "src/decomp/stock.c",
+    0x83B282, 0, 0, 0, 0xFFFF, { W16(HM_HAPPINESS, 0, 1100) } },
+  { "ChangeStamina", hm_ChangeStamina, 0, "src/decomp/stamina.c",
+    0x81D061, 1, 0, 0, 0xFF,
+    { B8(HM_MAX_STAMINA, 0, 255), B8(HM_CURRENT_STAMINA, 0, 255), B8(HM_EXHAUSTION, 0, 3),
+      W16(HM_GAME_STATE, 0, 0xFFFF), B8(0x11F60, 0, 255) } },
+  { "GetsCowPointer", hm_GetsCowPointer, HM_OUT_A, "src/decomp/animals.c",
+    0x83C9A7, 0, 0, 0, 0xFFFF, { { 0 } } },
+  { "GetChickenPointer", hm_GetChickenPointer, HM_OUT_A, "src/decomp/animals.c",
+    0x83C995, 0, 0, 0, 0xFFFF, { { 0 } } },
 };
 const int g_hm_decomp_count = (int)(sizeof g_hm_decomp_fns / sizeof g_hm_decomp_fns[0]);
 
@@ -73,7 +93,7 @@ void hm_decomp_check_end(const char *name, void *snapshot, const CpuState *cpu, 
    * decimal mode is not comparable; the rewrites assume binary mode. */
   if (!completed || s->cpu._flag_D) { st->skipped++; free(s); return; }
 
-  HmRegs in = { s->cpu.A, s->cpu.X, s->cpu.Y, s->cpu._flag_C, s->cpu.DB };
+  HmRegs in = { s->cpu.A, s->cpu.X, s->cpu.Y, s->cpu._flag_C, s->cpu._flag_N, s->cpu.DB, s->cpu.D };
   HmRegs out = in;
   f->fn(s->ram, &out);
 
@@ -100,4 +120,67 @@ void hm_decomp_check_end(const char *name, void *snapshot, const CpuState *cpu, 
     st->ok++;
   }
   free(s);
+}
+
+/* ── Fuzzing (HM_DECOMP_FUZZ=<frame>:<iterations>) ─────────────────── */
+static uint32_t s_rng = 0x12345678u;
+static uint32_t rnd(void) { s_rng ^= s_rng << 13; s_rng ^= s_rng >> 17; s_rng ^= s_rng << 5; return s_rng; }
+static uint16_t rnd_in(uint16_t lo, uint16_t hi)
+{
+  /* Mostly uniform in range, sometimes the edges, which is where bugs hide. */
+  uint32_t k = rnd() % 8;
+  if (k == 0) return lo;
+  if (k == 1) return hi;
+  return (uint16_t)(lo + rnd() % ((uint32_t)hi - lo + 1));
+}
+
+void hm_decomp_after_frame(unsigned frame)
+{
+  static int at = -2, iters;
+  if (at == -2) {
+    const char *e = getenv("HM_DECOMP_FUZZ");
+    at = -1;
+    if (e && *e) { at = atoi(e); const char *c = strchr(e, ':'); iters = c ? atoi(c + 1) : 1000; }
+  }
+  if (at < 0 || (int)frame != at) return;
+  at = -1;
+
+  static CpuState saved_cpu;
+  static uint8_t saved_ram[0x20000];
+  saved_cpu = g_cpu;
+  memcpy(saved_ram, g_cpu.ram, sizeof saved_ram);
+  int prev = g_hm_decomp_check;
+  if (!s_stats) { s_stats = calloc((size_t)g_hm_decomp_count, sizeof *s_stats); atexit(report); }
+  g_hm_decomp_check = 1;
+  fprintf(stderr, "[decomp-fuzz] frame %u: %d calls per routine\n", frame, iters);
+  for (int i = 0; i < g_hm_decomp_count; i++) {
+    const HmDecompFn *f = &g_hm_decomp_fns[i];
+    for (int n = 0; n < iters; n++) {
+      g_cpu = saved_cpu;
+      memcpy(g_cpu.ram, saved_ram, sizeof saved_ram);
+      for (int v = 0; v < HM_FUZZ_MAX_VARS && f->vars[v].size; v++) {
+        uint16_t x = rnd_in(f->vars[v].lo, f->vars[v].hi);
+        g_cpu.ram[f->vars[v].addr] = (uint8_t)x;
+        if (f->vars[v].size == 2) g_cpu.ram[f->vars[v].addr + 1] = (uint8_t)(x >> 8);
+      }
+      uint16_t a = rnd_in(f->a_lo, f->a_hi);
+      g_cpu.A = f->entry_m ? (uint16_t)((rnd() & 0xFF00) | (a & 0xFF)) : a;
+      g_cpu.X = (uint16_t)rnd(); g_cpu.Y = (uint16_t)rnd();
+      g_cpu.emulation = 0;
+      g_cpu.D = 0;
+      g_cpu._flag_D = 0;
+      g_cpu._flag_C = rnd() & 1;
+      g_cpu._flag_N = rnd() & 1;
+      cpu_mirrors_to_p(&g_cpu);
+      g_cpu.P = (uint8_t)((g_cpu.P & ~0x30) | (f->entry_m ? 0x20 : 0) | (f->entry_x ? 0x10 : 0));
+      cpu_p_to_mirrors(&g_cpu);
+      if (f->entry_x) { g_cpu.X &= 0xFF; g_cpu.Y &= 0xFF; }
+      cpu_push_jsl_return_frame(&g_cpu);
+      cpu_dispatch_pc_paired(&g_cpu, f->pc24, 3);
+    }
+  }
+  g_cpu = saved_cpu;
+  memcpy(g_cpu.ram, saved_ram, sizeof saved_ram);
+  g_hm_decomp_check = prev;
+  fprintf(stderr, "[decomp-fuzz] done; machine restored\n");
 }
