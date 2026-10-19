@@ -1,0 +1,98 @@
+format_version = 1
+id = "harvestmoon.cheats"
+version = "1.0.0"
+name = "Trucos (Cheats)"
+author = "HarvestMoonSNESRecomp"
+description = "Trucos clásicos. Se aplican solo con una partida cargada y respetan los límites del propio juego, así que tus partidas siguen siendo válidas al desactivarlos."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "harvestmoon-usa"
+rom_sha256 = "73a3aa87ddd5ce5df5ba51292316f42b6e128280179b0a1b11b4dcddc17d4163"
+
+[[feature]]
+id = "money"
+name = "Dinero infinito"
+description = "Mantiene tu dinero en el máximo que permite el juego (999,999)."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "money"
+id = "harvestmoon.cheat.money"
+
+[[feature]]
+id = "stamina"
+name = "Energía infinita"
+description = "Tu energía se rellena al máximo en todo momento: nunca te cansas."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "stamina"
+id = "harvestmoon.cheat.stamina"
+
+[[feature]]
+id = "freeze_clock"
+name = "Detener el reloj"
+description = "El tiempo no avanza durante el día. Al dormir pasas al día siguiente normalmente."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "freeze_clock"
+id = "harvestmoon.cheat.freeze_clock"
+
+[[feature]]
+id = "stock"
+name = "Madera y forraje infinitos"
+description = "Mantiene la madera y el forraje del silo en 999 (el máximo del juego)."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "stock"
+id = "harvestmoon.cheat.stock"
+
+[[feature]]
+id = "bags"
+name = "Semillas y alimento infinitos"
+description = "Las bolsas de semillas y de alimento que ya tengas se rellenan a 99."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "bags"
+id = "harvestmoon.cheat.bags"
+
+[[feature]]
+id = "weather"
+name = "Controlar el clima"
+description = "Decide el clima de los días normales. Los festivales no se tocan."
+group = "Trucos"
+default_enabled = false
+
+[[plugin]]
+feature = "weather"
+id = "harvestmoon.cheat.weather"
+
+[[option]]
+feature = "weather"
+id = "mode"
+label = "Clima"
+type = "choice"
+default = "sunny"
+
+[[option.choice]]
+value = "sunny"
+label = "Siempre soleado"
+
+[[option.choice]]
+value = "rain"
+label = "Siempre lluvia (riega tus cultivos; nieve en invierno)"
+
+[[option.choice]]
+value = "no_storms"
+label = "Sin huracanes ni tormentas"
