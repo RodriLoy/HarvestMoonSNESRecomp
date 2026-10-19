@@ -79,6 +79,17 @@ snesrecomp_target_generated_code(HarvestMoonSNESRecomp ${CMAKE_SOURCE_DIR}/src/g
 # it is now also enforced: a project with packages that never calls this fails
 # to configure.
 snesrecomp_target_mod_catalog(HarvestMoonSNESRecomp ${CMAKE_SOURCE_DIR}/mods/preloaded)
+
+# Windows: no black console window next to the game. The program keeps its
+# plain main() entry (mainCRTStartup); only the PE subsystem changes, which
+# works the same for mingw-w64 GCC and Zig/LLD. Logs still go to
+# last_run_report.json. -DHM_WINDOWS_CONSOLE=ON keeps the console (debugging).
+if(WIN32)
+  option(HM_WINDOWS_CONSOLE "Keep a console window for log output" OFF)
+  if(NOT HM_WINDOWS_CONSOLE)
+    target_link_options(HarvestMoonSNESRecomp PRIVATE -Wl,--subsystem,windows)
+  endif()
+endif()
 # Any other directory the game reads exe-relative (a translations/ table, ...)
 # is staged with snesrecomp_target_stage_dir, never with a separate ALL target.
 
