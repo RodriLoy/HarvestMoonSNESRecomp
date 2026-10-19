@@ -20,7 +20,19 @@
 #define HM_WEEKDAY          0x11F1A /* 8b */
 #define HM_DAY              0x11F1B /* 8b: 1..30; 0 before a diary is loaded */
 #define HM_HOUR             0x11F1C /* 8b: 24h clock */
-#define HM_MINUTES          0x11F1D /* 8b */
+#define HM_MINUTES          0x11F1D /* 8b: 0..14; one game hour is 15 "minutes" */
+#define HM_SECONDS          0x11F1E /* 8b: UpdateTime ($82:8000) adds 1 per frame
+                                     * while HM_TIME_RUNNING bit 0 is set; at 60
+                                     * it resets and HM_MINUTES advances. So one
+                                     * game hour = 900 frames = 15 s, and the
+                                     * 6:00-18:00 day lasts 3 real minutes. */
+
+/* ── Text boxes (text printer at $83:9571) ── */
+#define HM_TEXT_TICK        0x00189 /* 8b: +1 per frame; at 4 one glyph is printed
+                                     * and it resets to 0. Holding A makes the
+                                     * game itself store 4 here ($84:CF38), which
+                                     * is its built-in fast text. Idle value: 4. */
+#define HM_TEXT_X           0x00185 /* 16b: pen position of the next glyph */
 
 /* ── Weather (WeatherTomorrow $82:8CF9) ── */
 #define HM_WEATHER_TOMORROW 0x0098C /* 8b, codes below */

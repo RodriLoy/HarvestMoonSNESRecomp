@@ -1,0 +1,58 @@
+format_version = 1
+id = "harvestmoon.qol"
+version = "1.0.0"
+name = "Calidad de vida"
+author = "HarvestMoonSNESRecomp"
+description = "Mejoras de comodidad que no cambian el juego: texto más rápido y días más largos."
+license = "MIT"
+resolver = "declarative"
+save_compatibility = "shared"
+
+[[target]]
+game_id = "harvestmoon-usa"
+rom_sha256 = "73a3aa87ddd5ce5df5ba51292316f42b6e128280179b0a1b11b4dcddc17d4163"
+
+[[feature]]
+id = "fast_text"
+name = "Texto rápido"
+description = "Los diálogos se escriben 4 veces más rápido, como si mantuvieras presionado A todo el tiempo."
+group = "Calidad de vida"
+default_enabled = false
+
+[[plugin]]
+feature = "fast_text"
+id = "harvestmoon.qol.fast_text"
+
+[[feature]]
+id = "day_length"
+name = "Días más largos"
+description = "El reloj del juego avanza más lento. Normalmente un día (6:00 a 18:00) dura 3 minutos reales."
+group = "Calidad de vida"
+default_enabled = false
+
+[[plugin]]
+feature = "day_length"
+id = "harvestmoon.qol.day_length"
+
+[[option]]
+feature = "day_length"
+id = "factor"
+label = "Duración del día"
+type = "choice"
+default = "2"
+
+[[option.choice]]
+value = "1.5"
+label = "1.5× (4.5 minutos)"
+
+[[option.choice]]
+value = "2"
+label = "2× (6 minutos)"
+
+[[option.choice]]
+value = "3"
+label = "3× (9 minutos)"
+
+[[option.choice]]
+value = "4"
+label = "4× (12 minutos)"
