@@ -46,6 +46,7 @@ add_executable(HarvestMoonSNESRecomp
     src/hm_qol.c
     src/hm_pause.c
     src/hm_title.c
+    src/hm_widescreen.c
 )
 
 # ROM identity. rom_identity.txt is the one place the digests live: the build

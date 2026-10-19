@@ -78,3 +78,14 @@ default_enabled = true
 [[plugin]]
 feature = "title_options"
 id = "harvestmoon.qol.title_options"
+
+[[feature]]
+id = "widescreen"
+name = "Pantalla ancha (16:9)"
+description = "Muestra más del mapa a los lados en lugar de las barras negras. Al llegar al borde del mapa, en cuartos pequeños y en el título se ve como el original (4:3)."
+group = "Video"
+default_enabled = true
+
+[[plugin]]
+feature = "widescreen"
+id = "harvestmoon.qol.widescreen"

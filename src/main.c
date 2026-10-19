@@ -30,6 +30,7 @@
 #include "snesrecomp_rom_identity.h"  /* generated from rom_identity.txt */
 #include "hm_default_config.h"
 #include "hm_pause.h"
+#include "hm_widescreen.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -71,6 +72,11 @@ static const SnesDesktopHostGame kGameHost = {
     .title_overlay_poll_nav   = hm_pause_poll_nav,
     .title_overlay_image      = hm_pause_image,
     .title_overlay_closed     = hm_pause_closed,
+    /* Widescreen (quality-of-life feature): the runner's widened PPU field,
+     * with the per-frame margins decided by hm_widescreen.c. */
+    .native_widescreen   = 1,
+    .prepare_frame       = hm_ws_prepare_frame,
+    .begin_sim_frame     = hm_ws_begin_sim_frame,
 };
 
 #ifndef __ANDROID__

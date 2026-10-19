@@ -105,6 +105,20 @@ enum {
 #define HM_RNG_STATE        0x00100 /* 3 bytes, GetRNG $83:8138 (LFSR) */
 #define HM_RNG_LAST         0x000DE /* last value handed to event scripts */
 
+/* ── Map and camera ($80:9EBC, $80:A11C, map loader at $80:B5xx) ──────── */
+/* Map being shown: < $57 are field maps loaded with a camera range; $57 and
+ * up are single-picture screens (title $5C, intro, name entry $5F...). */
+#define HM_MAP_ID           0x00022 /* 8b (decomp: tilemap_to_load) */
+#define HM_MAP_FIRST_PICTURE 0x57
+#define HM_CAM_X            0x0013C /* 16b world X of the BG1 camera */
+#define HM_CAM_Y            0x0013E /* 16b */
+/* Camera range, loaded with each map. The visible world is
+ * [MIN_X, MAX_X + 256); 0..0 is a one-screen room. (decomp: OBJ_clamp_*) */
+#define HM_CAM_MIN_X        0x000ED /* 16b */
+#define HM_CAM_MIN_Y        0x000EF /* 16b */
+#define HM_CAM_MAX_X        0x000F1 /* 16b */
+#define HM_CAM_MAX_Y        0x000F3 /* 16b */
+
 static inline uint16_t hm_rd16(const uint8_t *ram, uint32_t a) {
   return (uint16_t)(ram[a] | (ram[a + 1] << 8));
 }

@@ -1,0 +1,9 @@
+# Generation recipe, read by `snesrecomp_cli.py generate --cfg-dir recomp`
+# (tools/regen.sh and the launcher's Generate & Rebuild).
+schema = 1
+
+# Post-generation overrides (see the script's docstring): today, only the
+# widescreen sprite clip in PrepareOAMData.
+[[postprocess]]
+script = "tools/apply_overrides.py"
+args = ["--gen-dir", "{out_dir}"]
