@@ -153,6 +153,8 @@ void hm_ws_prepare_frame(int drawable_w, int drawable_h, int *frame_w, int *fram
   *frame_w = s.enabled ? SnesDisplayAspect_ComputeWideFrameWidth(256) : 256;
 }
 
+int hm_ws_field_width(void) { return s.window_fw; }
+
 void hm_ws_set_enabled(bool on)
 {
   s.enabled = on;

@@ -70,6 +70,7 @@ static const LauncherI18nPair kEs[] = {
   {"Video", "Video"},
   /* pause menu */
   {"Tools", "Herramientas"}, {"Hearts", "Corazones"}, {"Farm", "Granja"},
+  {"Hand", "Mano"}, {"Bag", "Mochila"}, {"Year %u", "Año %u"},
   {"L / R  tabs", "L / R  pestañas"},
   {"B / M / Esc  close     ·     the game is paused", "B / M / Esc  cerrar     ·     el juego está en pausa"},
   {"IN THE TOOL SHED", "EN LA BODEGA"},
@@ -165,6 +166,7 @@ static const LauncherI18nPair kIt[] = {
   {"Shows more of the map at the sides instead of black bars. At a map's edge, in small rooms and on the title screen it looks like the original (4:3).",
    "Mostra più mappa ai lati al posto delle bande nere. Al bordo della mappa, nelle stanze piccole e nel titolo resta come l'originale (4:3)."},
   {"Tools", "Attrezzi"}, {"Hearts", "Cuori"}, {"Farm", "Fattoria"},
+  {"Hand", "Mano"}, {"Bag", "Zaino"}, {"Year %u", "Anno %u"},
   {"L / R  tabs", "L / R  schede"},
   {"B / M / Esc  close     ·     the game is paused", "B / M / Esc  chiudi     ·     il gioco è in pausa"},
   {"IN THE TOOL SHED", "NEL CAPANNO"},

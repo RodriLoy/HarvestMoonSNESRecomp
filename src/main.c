@@ -79,6 +79,7 @@ static const SnesDesktopHostGame kGameHost = {
     .title_overlay_poll_nav   = hm_pause_poll_nav,
     .title_overlay_image      = hm_pause_image,
     .title_overlay_closed     = hm_pause_closed,
+    .title_overlay_keeps_music = 1,   /* the song plays on under the menu */
     /* Widescreen (quality-of-life feature): the runner's widened PPU field,
      * with the per-frame margins decided by hm_widescreen.c. */
     .native_widescreen   = 1,
