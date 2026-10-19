@@ -2,8 +2,9 @@
 # (tools/regen.sh and the launcher's Generate & Rebuild).
 schema = 1
 
-# Post-generation overrides (see the script's docstring): today, only the
-# widescreen sprite clip in PrepareOAMData.
+# Post-generation overrides (see the script's docstring): HM-Decomp names for
+# the compiled routines, and the widescreen sprite clip in PrepareOAMData.
 [[postprocess]]
 script = "tools/apply_overrides.py"
-args = ["--gen-dir", "{out_dir}"]
+args = ["--gen-dir", "{out_dir}", "--names", "{project_root}/recomp/decomp_names.tsv",
+        "--decomp", "{project_root}/src/decomp/hm_decomp.c"]
