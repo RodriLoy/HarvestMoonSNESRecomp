@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Rasterize DejaVu Sans into src/hm_font.h: proportional 8-bit alpha glyphs
-for the pause menu, covering ASCII plus the Spanish letters the menu uses.
+for the pause menu, covering ASCII plus the Latin-1 letters (Spanish,
+Italian, French, Portuguese, German...) its translations use.
 
     python3 tools/gen_font.py [path/to/DejaVuSans-Bold.ttf]
 
@@ -12,7 +13,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 TTF = sys.argv[1] if len(sys.argv) > 1 else "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-EXTRA = "áéíóúÁÉÍÓÚñÑüÜ¿¡°·×♥↔"
+EXTRA = "".join(chr(c) for c in range(0xC0, 0x100) if c not in (0xD7, 0xF7)) + "¿¡°·×♥↔"
 CHARS = [chr(c) for c in range(32, 127)] + list(EXTRA)
 SIZES = {"small": 11, "body": 13, "title": 19}
 

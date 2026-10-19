@@ -45,6 +45,7 @@ add_executable(HarvestMoonSNESRecomp
     src/hm_cheats.c
     src/hm_qol.c
     src/hm_pause.c
+    src/hm_i18n.c
     src/hm_title.c
     src/hm_widescreen.c
 )

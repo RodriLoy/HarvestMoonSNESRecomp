@@ -1,12 +1,15 @@
 format_version = 1
 id = "harvestmoon.cheats"
 version = "1.0.0"
-name = "Trucos (Cheats)"
+name = "Cheats"
 author = "HarvestMoonSNESRecomp"
-description = "Trucos clásicos. Se aplican solo con una partida cargada y respetan los límites del propio juego, así que tus partidas siguen siendo válidas al desactivarlos."
+description = "Classic cheats. They only act while a diary is loaded and stay inside the game's own limits, so your saves remain valid when you turn them off."
 license = "MIT"
 resolver = "declarative"
 save_compatibility = "shared"
+
+# Text here is English; translations live in src/hm_i18n.c and follow the
+# language picked in the launcher.
 
 [[target]]
 game_id = "harvestmoon-usa"
@@ -14,9 +17,9 @@ rom_sha256 = "73a3aa87ddd5ce5df5ba51292316f42b6e128280179b0a1b11b4dcddc17d4163"
 
 [[feature]]
 id = "money"
-name = "Dinero infinito"
-description = "Mantiene tu dinero en el máximo que permite el juego: 9,999,990 G."
-group = "Trucos"
+name = "Infinite money"
+description = "Keeps your money at the most the game allows: 9,999,990 G."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -25,9 +28,9 @@ id = "harvestmoon.cheat.money"
 
 [[feature]]
 id = "stamina"
-name = "Energía infinita"
-description = "Tu energía se rellena al máximo en todo momento: nunca te cansas."
-group = "Trucos"
+name = "Infinite stamina"
+description = "Your stamina is always topped up: you never get tired."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -36,9 +39,9 @@ id = "harvestmoon.cheat.stamina"
 
 [[feature]]
 id = "freeze_clock"
-name = "Detener el reloj"
-description = "El tiempo no avanza durante el día. Al dormir pasas al día siguiente normalmente."
-group = "Trucos"
+name = "Stop the clock"
+description = "Time does not pass during the day. Going to bed still moves on to the next day."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -47,9 +50,9 @@ id = "harvestmoon.cheat.freeze_clock"
 
 [[feature]]
 id = "stock"
-name = "Madera y forraje infinitos"
-description = "Mantiene la madera y el forraje del silo en 999 (el máximo del juego)."
-group = "Trucos"
+name = "Infinite lumber and fodder"
+description = "Keeps the lumber and the fodder in the silo at 999 (the game's maximum)."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -58,9 +61,9 @@ id = "harvestmoon.cheat.stock"
 
 [[feature]]
 id = "bags"
-name = "Semillas y alimento infinitos"
-description = "Las bolsas de semillas y de alimento que ya tengas se rellenan a 99."
-group = "Trucos"
+name = "Infinite seeds and feed"
+description = "Seed and feed bags you already have are refilled to 99."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -69,9 +72,9 @@ id = "harvestmoon.cheat.bags"
 
 [[feature]]
 id = "weather"
-name = "Controlar el clima"
-description = "Decide el clima de los días normales. Los festivales no se tocan."
-group = "Trucos"
+name = "Control the weather"
+description = "Choose the weather of ordinary days. Festivals are left alone."
+group = "Cheats"
 default_enabled = false
 
 [[plugin]]
@@ -81,18 +84,18 @@ id = "harvestmoon.cheat.weather"
 [[option]]
 feature = "weather"
 id = "mode"
-label = "Clima"
+label = "Weather"
 type = "choice"
 default = "sunny"
 
 [[option.choice]]
 value = "sunny"
-label = "Siempre soleado"
+label = "Always sunny"
 
 [[option.choice]]
 value = "rain"
-label = "Siempre lluvia (riega tus cultivos; nieve en invierno)"
+label = "Always rain (waters your crops; snow in winter)"
 
 [[option.choice]]
 value = "no_storms"
-label = "Sin huracanes ni tormentas"
+label = "No hurricanes or storms"

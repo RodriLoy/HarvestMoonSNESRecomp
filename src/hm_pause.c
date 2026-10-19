@@ -32,6 +32,7 @@
 #include "hm_ram.h"
 #include "hm_font.h"
 #include "hm_pause.h"
+#include "hm_i18n.h"
 
 /* ── Panel ───────────────────────────────────────────────────────────── */
 enum { PW = 512, PH = 448 };
@@ -179,22 +180,22 @@ static void heart(int cx, int cy, int size, double fill, uint32_t col)
 typedef struct { uint8_t id; const char *name; } ToolName;
 /* ids are the game's own item numbers (hm_ram.h, $0921) */
 static const ToolName kTools[] = {
-  {0x01, "Hoz"}, {0x02, "Azada"}, {0x03, "Martillo"}, {0x04, "Hacha"},
-  {0x10, "Regadera"}, {0x05, "Semillas de maíz"}, {0x06, "Semillas de tomate"},
-  {0x07, "Semillas de papa"}, {0x08, "Semillas de nabo"}, {0x0C, "Semillas de pasto"},
-  {0x0E, "Ordeñadora"}, {0x0F, "Cepillo"}, {0x0B, "Campana"}, {0x09, "Medicina para vaca"},
-  {0x0A, "Poción milagrosa"}, {0x0D, "Pintura"}, {0x11, "Hoz de oro"}, {0x12, "Azada de oro"},
-  {0x13, "Martillo de oro"}, {0x14, "Hacha de oro"}, {0x15, "Aspersor"},
-  {0x16, "Habichuela mágica"}, {0x17, "Diamante azul"}, {0x18, "Pluma azul"},
+  {0x01, "Sickle"}, {0x02, "Hoe"}, {0x03, "Hammer"}, {0x04, "Ax"},
+  {0x10, "Watering Can"}, {0x05, "Corn Seeds"}, {0x06, "Tomato Seeds"},
+  {0x07, "Potato Seeds"}, {0x08, "Turnip Seeds"}, {0x0C, "Grass Seeds"},
+  {0x0E, "Milker"}, {0x0F, "Brush"}, {0x0B, "Bell"}, {0x09, "Cow Medicine"},
+  {0x0A, "Miracle Potion"}, {0x0D, "Paint"}, {0x11, "Gold Sickle"}, {0x12, "Gold Hoe"},
+  {0x13, "Gold Hammer"}, {0x14, "Gold Ax"}, {0x15, "Sprinkler"},
+  {0x16, "Magic Beans"}, {0x17, "Blue Diamond"}, {0x18, "Blue Feather"},
 };
 enum { NTOOLS = sizeof kTools / sizeof kTools[0] };
 
 static const char *tool_name(uint8_t id)
 {
-  if (id == 0) return "(nada)";
-  if (id == 0x19) return "Alimento para pollos";
-  if (id == 0x1A) return "Alimento para vacas";
-  for (int i = 0; i < NTOOLS; i++) if (kTools[i].id == id) return kTools[i].name;
+  if (id == 0) return T("(nothing)");
+  if (id == 0x19) return T("Chicken Feed");
+  if (id == 0x1A) return T("Cow Feed");
+  for (int i = 0; i < NTOOLS; i++) if (kTools[i].id == id) return T(kTools[i].name);
   return "?";
 }
 /* The shed slot of an item: DATA16_81BE0F, bytes 6 (row) and 7 (mask) of
@@ -255,50 +256,50 @@ static void equip_from_shed(uint8_t id)
   }
   g_ram[HM_TOOL_SELECTED] = id;
   set_in_shed(id, false);
-  char m[96]; snprintf(m, sizeof m, "Ahora llevas: %s", tool_name(id)); say(m);
+  char m[96]; snprintf(m, sizeof m, T("Now holding: %s"), tool_name(id)); say(m);
 }
 
 static void action_a(void)
 {
   if (s.tab != 0) return;
-  if (!player_free()) { say("No puedes cambiar de herramienta ahora."); return; }
+  if (!player_free()) { say(T("You can't change tools right now.")); return; }
   int r = s_tool_rows[s.cursor];
   if (r >= 0) equip_from_shed(kTools[r].id);
   else if (r == -2 && g_ram[HM_TOOL_BACKPACK]) {
     uint8_t t = g_ram[HM_TOOL_SELECTED];       /* the game's own X swap */
     g_ram[HM_TOOL_SELECTED] = g_ram[HM_TOOL_BACKPACK];
     g_ram[HM_TOOL_BACKPACK] = t;
-    say("Intercambiaste mano y mochila.");
+    say(T("Swapped hand and backpack."));
   }
   build_tool_rows();
 }
 static void action_x(void)   /* swap hand and backpack */
 {
   if (s.tab != 0) return;
-  if (!player_free()) { say("No puedes cambiar de herramienta ahora."); return; }
+  if (!player_free()) { say(T("You can't change tools right now.")); return; }
   uint8_t t = g_ram[HM_TOOL_SELECTED];
   g_ram[HM_TOOL_SELECTED] = g_ram[HM_TOOL_BACKPACK];
   g_ram[HM_TOOL_BACKPACK] = t;
-  say("Intercambiaste mano y mochila.");
+  say(T("Swapped hand and backpack."));
 }
 static void action_y(void)   /* put the selected hand/backpack item away */
 {
   if (s.tab != 0) return;
-  if (!player_free()) { say("No puedes cambiar de herramienta ahora."); return; }
+  if (!player_free()) { say(T("You can't change tools right now.")); return; }
   int r = s_tool_rows[s.cursor];
   uint32_t slot = r == -2 ? HM_TOOL_BACKPACK : HM_TOOL_SELECTED;
   uint8_t id = g_ram[slot];
   int row; uint8_t mask;
-  if (!id) { say("No hay nada que guardar."); return; }
-  if (!shed_slot(id, &row, &mask) || row > 2) { say("Eso no se guarda en la bodega."); return; }
+  if (!id) { say(T("Nothing to put away.")); return; }
+  if (!shed_slot(id, &row, &mask) || row > 2) { say(T("That doesn't go in the tool shed.")); return; }
   set_in_shed(id, true);
   g_ram[slot] = 0;
-  char m[96]; snprintf(m, sizeof m, "Guardaste: %s", tool_name(id)); say(m);
+  char m[96]; snprintf(m, sizeof m, T("Put away: %s"), tool_name(id)); say(m);
   build_tool_rows();
 }
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */
-static const char *kTabs[3] = { "Herramientas", "Corazones", "Granja" };
+static const char *kTabs[3] = { "Tools", "Hearts", "Farm" };
 
 static void draw_tools(int x, int y)
 {
@@ -306,16 +307,16 @@ static void draw_tools(int x, int y)
   for (int i = 0; i < s_ntool_rows; i++) {
     int r = s_tool_rows[i];
     int ry = y + (i < 2 ? i * 22 : 64 + (i - 2) * 19);
-    if (i == 2) text(&kHmFont_small, x, y + 46, "EN LA BODEGA", COL_INK_SOFT);
+    if (i == 2) text(&kHmFont_small, x, y + 46, T("IN THE TOOL SHED"), COL_INK_SOFT);
     if (ry > 372) break;
     if (i == s.cursor) rrect(x - 6, ry - 2, 300, b->h + 4, 4, COL_SELECT);
     if (r < 0) {
-      const char *label = r == -1 ? "En la mano:" : "En la mochila:";
+      const char *label = r == -1 ? T("In hand:") : T("In backpack:");
       uint8_t id = g_ram[r == -1 ? HM_TOOL_SELECTED : HM_TOOL_BACKPACK];
       int nx = text(b, x, ry, label, COL_INK_SOFT);
       text(b, nx + 6, ry, tool_name(id), id ? COL_INK : COL_GRAY);
     } else {
-      int nx = text(b, x + 10, ry, kTools[r].name, COL_INK);
+      int nx = text(b, x + 10, ry, T(kTools[r].name), COL_INK);
       uint8_t id = kTools[r].id;
       uint32_t cnt = 0;
       if (id >= 0x05 && id <= 0x08) cnt = g_ram[HM_SEEDS_CORN_N + (id - 0x05)];
@@ -324,26 +325,29 @@ static void draw_tools(int x, int y)
     }
   }
   /* help column */
-  int hx = x + 312;
-  text(b, hx, y, "A  equipar", COL_INK);
-  text(b, hx, y + 20, "X  mano ↔ mochila", COL_INK);
-  text(b, hx, y + 40, "Y  guardar en", COL_INK);
-  text(b, hx + 18, y + 56, "la bodega", COL_INK);
+  /* Small type: the longest translation ("X  hand ↔ backpack") must fit
+   * between the list and the board's edge. */
+  const HmFont *h = &kHmFont_small;
+  int hx = x + 308;
+  text(h, hx, y + 2, T("A  equip"), COL_INK);
+  text(h, hx, y + 20, T("X  hand ↔ backpack"), COL_INK);
+  text(h, hx, y + 38, T("Y  put away in"), COL_INK);
+  text(h, hx + 15, y + 52, T("the tool shed"), COL_INK);
   if (!player_free())
-    text(&kHmFont_small, hx, y + 90, "(solo con control libre)", COL_RED);
+    text(&kHmFont_small, hx, y + 90, T("(only while you can move)"), COL_RED);
   if (s.message[0]) text(&kHmFont_small, x, 368, s.message, COL_GREEN);
 }
 
 static void draw_hearts(int x, int y)
 {
-  static const char *names[5] = { "María", "Ann", "Nina", "Ellen", "Eve" };
+  static const char *names[5] = { "Maria", "Ann", "Nina", "Ellen", "Eve" };
   const HmFont *b = &kHmFont_body;
   for (int i = 0; i < 5; i++) {
     int ry = y + i * 58;
     unsigned v = hm_rd16(g_ram, HM_HEARTS_BASE + i * 2);
     if (v > 999) v = 999;
     heart(x + 16, ry + 14, 14, v / 999.0, COL_RED);
-    text(&kHmFont_title, x + 40, ry + 2, names[i], COL_INK);
+    text(&kHmFont_title, x + 40, ry + 2, T(names[i]), COL_INK);
     /* bar with the thresholds the game's code tests */
     int bx = x + 140, bw = 250, by = ry + 8;
     rrect(bx, by, bw, 12, 5, COL_PAPER_DARK);
@@ -357,35 +361,37 @@ static void draw_hearts(int x, int y)
     char num[16]; snprintf(num, sizeof num, "%u", v);
     text_r(b, bx + bw + 46, by - 2, num, COL_INK);
   }
-  text(&kHmFont_small, x, y + 284, "Marcas: 200 evento de corazón · 450 primer hijo ·", COL_INK_SOFT);
-  text(&kHmFont_small, x, y + 297, "650 segundo hijo · máximo 999", COL_INK_SOFT);
+  text(&kHmFont_small, x, y + 284, T("Marks: 200 heart event · 450 first child ·"), COL_INK_SOFT);
+  text(&kHmFont_small, x, y + 297, T("650 second child · maximum 999"), COL_INK_SOFT);
 }
 
 static void draw_farm(int x, int y)
 {
-  static const char *days[7] = { "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado" };
-  static const char *seasons[4] = { "Primavera", "Verano", "Otoño", "Invierno" };
-  static const char *weather[12] = { "Soleado", "Lluvia", "Nieve", "Huracán", "Despejado", "Tormenta",
-    "Festival de las flores", "Festival de la cosecha", "Día de acción de gracias",
-    "Festival de las estrellas", "Año nuevo", "Festival del huevo" };
+  static const char *days[7] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+  static const char *seasons[4] = { "Spring", "Summer", "Fall", "Winter" };
+  static const char *weather[12] = { "Sunny", "Rain", "Snow", "Hurricane", "Fair", "Storm",
+    "Flower Festival", "Harvest Festival", "Thanksgiving",
+    "Star Night Festival", "New Year", "Egg Festival" };
   const HmFont *b = &kHmFont_body;
   uint8_t *r = g_ram;
   char v[96];
   int row = 0, lx = x, vx = x + 190;
 #define LINE(label, ...) do { snprintf(v, sizeof v, __VA_ARGS__); \
-    text(b, lx, y + row * 26, label, COL_INK_SOFT); text(b, vx, y + row * 26, v, COL_INK); row++; } while (0)
-  LINE("Fecha", "%s %u de %s, año %u", days[r[HM_WEEKDAY] % 7], r[HM_DAY],
-       seasons[r[HM_SEASON] & 3], r[HM_YEAR] + 1u);
-  LINE("Hora", "%u:%02u", r[HM_HOUR], (r[HM_MINUTES] % 15) * 4);
-  LINE("Dinero", "%u G", (unsigned)hm_rd24(r, HM_MONEY) * 10u);
-  LINE("Envíos de hoy", "%u G", (unsigned)hm_rd24(r, HM_SHIPPING_MONEY) * 10u);
-  LINE("Madera", "%u", hm_rd16(r, HM_STORED_WOOD));
-  LINE("Forraje", "%u", hm_rd16(r, HM_STORED_GRASS));
-  LINE("Vacas", "%u", r[HM_COW_N]);
-  LINE("Felicidad", "%u / 999", hm_rd16(r, HM_HAPPINESS));
-  LINE("Abrazos al perro", "%u", hm_rd16(r, HM_DOG_HUGS));
-  LINE("Clima de mañana", "%s", r[HM_WEATHER_TOMORROW] < 12 ? weather[r[HM_WEATHER_TOMORROW]] : "?");
-  LINE("Energía", "%u / %u", r[HM_CURRENT_STAMINA], r[HM_MAX_STAMINA]);
+    text(b, lx, y + row * 26, T(label), COL_INK_SOFT); text(b, vx, y + row * 26, v, COL_INK); row++; } while (0)
+  /* Argument order is fixed (weekday, season, day, year); each language's
+   * format string arranges the words around it. */
+  LINE("Date", T("%s, %s %u, Year %u"), T(days[r[HM_WEEKDAY] % 7]),
+       T(seasons[r[HM_SEASON] & 3]), r[HM_DAY], r[HM_YEAR] + 1u);
+  LINE("Time", "%u:%02u", r[HM_HOUR], (r[HM_MINUTES] % 15) * 4);
+  LINE("Money", "%u G", (unsigned)hm_rd24(r, HM_MONEY) * 10u);
+  LINE("Shipped today", "%u G", (unsigned)hm_rd24(r, HM_SHIPPING_MONEY) * 10u);
+  LINE("Lumber", "%u", hm_rd16(r, HM_STORED_WOOD));
+  LINE("Fodder", "%u", hm_rd16(r, HM_STORED_GRASS));
+  LINE("Cows", "%u", r[HM_COW_N]);
+  LINE("Happiness", "%u / 999", hm_rd16(r, HM_HAPPINESS));
+  LINE("Dog hugs", "%u", hm_rd16(r, HM_DOG_HUGS));
+  LINE("Tomorrow's weather", "%s", r[HM_WEATHER_TOMORROW] < 12 ? T(weather[r[HM_WEATHER_TOMORROW]]) : "?");
+  LINE("Stamina", "%u / %u", r[HM_CURRENT_STAMINA], r[HM_MAX_STAMINA]);
 #undef LINE
 }
 
@@ -396,18 +402,18 @@ static void render(void)
   /* tabs */
   int tx = 34;
   for (int t = 0; t < 3; t++) {
-    int w = text_w(&kHmFont_body, kTabs[t]) + 24;
+    int w = text_w(&kHmFont_body, T(kTabs[t])) + 24;
     rrect(tx, 30, w, 26, 6, t == s.tab ? COL_GREEN : COL_PAPER_DARK);
-    text(&kHmFont_body, tx + 12, 35, kTabs[t], t == s.tab ? COL_WHITE : COL_INK_SOFT);
+    text(&kHmFont_body, tx + 12, 35, T(kTabs[t]), t == s.tab ? COL_WHITE : COL_INK_SOFT);
     tx += w + 8;
   }
-  text_r(&kHmFont_small, PW - 36, 38, "L / R  pestañas", COL_INK_SOFT);
+  text_r(&kHmFont_small, PW - 36, 38, T("L / R  tabs"), COL_INK_SOFT);
   rect(30, 62, PW - 60, 2, COL_PAPER_DARK);
   if (s.tab == 0) draw_tools(42, 78);
   else if (s.tab == 1) draw_hearts(42, 78);
   else draw_farm(42, 80);
   rect(30, 392, PW - 60, 2, COL_PAPER_DARK);
-  text_c(&kHmFont_small, PW / 2, 400, "B / M / Esc  cerrar     ·     el juego está en pausa", COL_INK_SOFT);
+  text_c(&kHmFont_small, PW / 2, 400, T("B / M / Esc  close     ·     the game is paused"), COL_INK_SOFT);
 }
 
 /* ── Input ───────────────────────────────────────────────────────────── */

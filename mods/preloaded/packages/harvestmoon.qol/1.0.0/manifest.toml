@@ -1,12 +1,15 @@
 format_version = 1
 id = "harvestmoon.qol"
 version = "1.0.0"
-name = "Calidad de vida"
+name = "Quality of life"
 author = "HarvestMoonSNESRecomp"
-description = "Mejoras de comodidad que no cambian el juego: texto más rápido y días más largos."
+description = "Comfort improvements that do not change the game: faster text, longer days, a pause menu and widescreen."
 license = "MIT"
 resolver = "declarative"
 save_compatibility = "shared"
+
+# Text here is English; translations live in src/hm_i18n.c and follow the
+# language picked in the launcher.
 
 [[target]]
 game_id = "harvestmoon-usa"
@@ -14,9 +17,9 @@ rom_sha256 = "73a3aa87ddd5ce5df5ba51292316f42b6e128280179b0a1b11b4dcddc17d4163"
 
 [[feature]]
 id = "fast_text"
-name = "Texto rápido"
-description = "Los diálogos se escriben 4 veces más rápido, como si mantuvieras presionado A todo el tiempo."
-group = "Calidad de vida"
+name = "Fast text"
+description = "Dialogue is written 4 times faster, as if you held A all the time."
+group = "Quality of life"
 default_enabled = false
 
 [[plugin]]
@@ -25,9 +28,9 @@ id = "harvestmoon.qol.fast_text"
 
 [[feature]]
 id = "day_length"
-name = "Días más largos"
-description = "El reloj del juego avanza más lento. Normalmente un día (6:00 a 18:00) dura 3 minutos reales."
-group = "Calidad de vida"
+name = "Longer days"
+description = "The game clock runs slower. Normally a day (6:00 to 18:00) lasts 3 real minutes."
+group = "Quality of life"
 default_enabled = false
 
 [[plugin]]
@@ -37,31 +40,31 @@ id = "harvestmoon.qol.day_length"
 [[option]]
 feature = "day_length"
 id = "factor"
-label = "Duración del día"
+label = "Day length"
 type = "choice"
 default = "2"
 
 [[option.choice]]
 value = "1.5"
-label = "1.5× (4.5 minutos)"
+label = "1.5x (4.5 minutes)"
 
 [[option.choice]]
 value = "2"
-label = "2× (6 minutos)"
+label = "2x (6 minutes)"
 
 [[option.choice]]
 value = "3"
-label = "3× (9 minutos)"
+label = "3x (9 minutes)"
 
 [[option.choice]]
 value = "4"
-label = "4× (12 minutos)"
+label = "4x (12 minutes)"
 
 [[feature]]
 id = "pause_menu"
-name = "Menú de pausa (estilo Harvest Moon 64)"
-description = "Tecla M o clic del stick derecho (R3): herramientas, corazones de las chicas y estado de tu granja. El juego queda en pausa mientras está abierto."
-group = "Calidad de vida"
+name = "Pause menu (Harvest Moon 64 style)"
+description = "M key or right-stick click (R3): tools, the girls' hearts and your farm's status. The game is paused while it is open."
+group = "Quality of life"
 default_enabled = true
 
 [[plugin]]
@@ -70,9 +73,9 @@ id = "harvestmoon.qol.pause_menu"
 
 [[feature]]
 id = "title_options"
-name = "OPTIONS en la pantalla de título"
-description = "Agrega una cuarta opción, OPTIONS, debajo de HOW TO PLAY, que abre este menú de opciones."
-group = "Calidad de vida"
+name = "OPTIONS on the title screen"
+description = "Adds a fourth entry, OPTIONS, below HOW TO PLAY, which opens this options menu."
+group = "Quality of life"
 default_enabled = true
 
 [[plugin]]
@@ -81,8 +84,8 @@ id = "harvestmoon.qol.title_options"
 
 [[feature]]
 id = "widescreen"
-name = "Pantalla ancha (16:9)"
-description = "Muestra más del mapa a los lados en lugar de las barras negras. Al llegar al borde del mapa, en cuartos pequeños y en el título se ve como el original (4:3)."
+name = "Widescreen (16:9)"
+description = "Shows more of the map at the sides instead of black bars. At a map's edge, in small rooms and on the title screen it looks like the original (4:3)."
 group = "Video"
 default_enabled = true
 
