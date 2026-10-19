@@ -1,14 +1,14 @@
-# Estado de la recompilación (pausada el 19-oct-2026)
+# Estado de la recompilación (actualizado el 19-oct-2026)
 
 Este archivo es la "memoria" del proyecto: qué está hecho, cómo se hace cada
 cosa y qué falta, para retomarlo sin perder nada. Por ahora el trabajo sigue
 en el proyecto de descompilación (HarvestMoonDecomp).
 
-## Versión actual: 0.5
+## Versión actual: 0.6
 
 Port nativo de Harvest Moon (SNES, USA) hecho con SNESRecomp
-(framework fijado en `framework_pins.txt`, con 4 parches propios en
-`framework_patches/`).
+(framework fijado en `framework_pins.txt`, con parches propios en
+`framework_patches/` y `recomp_ui_patches/`).
 
 | Función | Dónde | Estado |
 |---|---|---|
@@ -21,6 +21,7 @@ Port nativo de Harvest Moon (SNES, USA) hecho con SNESRecomp
 | Menú de opciones en juego (Esc) | framework + parche 0002 | Funciona |
 | Pantalla ancha 16:9 | `src/hm_widescreen.c`, `tools/apply_overrides.py` | Funciona (activada por defecto) |
 | Sin ventana de consola en Windows | `CMakeLists.txt` | Funciona |
+| Varios idiomas (inglés por defecto, español, italiano): launcher, Mods, menú de pausa | `recomp-ui` (parche), `src/hm_i18n.c` | Funciona |
 | Windows x64 y Windows ARM64 | `cmake/*.cmake` | Compilan; ARM64 sin probar en tu PC |
 
 Mapa de memoria con nombres: `src/hm_ram.h` (lo usa también la descompilación).
@@ -63,7 +64,7 @@ Windows ARM64: `-DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows-arm64.cmake` (Zig).
 
 1. Probar la versión ARM64 en tu PC y corregir lo que aparezca.
 2. Opcional: saltar la intro (calidad de vida).
-3. Opcional: personalizar el launcher (aspecto Harvest Moon, todo en español).
+3. Opcional: darle aspecto Harvest Moon al launcher (colores, imagen). Ya es multi-idioma.
 4. Descartado por ahora: modo 120/144 Hz (tu pantalla es de 60 Hz).
 5. Cuando la descompilación tenga un sistema entero verificado, decidir si
    el juego pasa a usar esas rutinas reescritas.
@@ -77,3 +78,4 @@ Windows ARM64: `-DCMAKE_TOOLCHAIN_FILE=cmake/zig-windows-arm64.cmake` (Zig).
 | 0.3 | Menú de pausa y menú de opciones en juego |
 | 0.4 | OPTIONS en el título, versión ARM64 |
 | 0.5 | Pantalla ancha 16:9, sin consola; la descompilación pasa a su propio proyecto |
+| 0.6 | Launcher, Mods y menú de pausa en varios idiomas (inglés por defecto) |
