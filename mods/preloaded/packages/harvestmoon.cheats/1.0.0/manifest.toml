@@ -15,7 +15,7 @@ rom_sha256 = "73a3aa87ddd5ce5df5ba51292316f42b6e128280179b0a1b11b4dcddc17d4163"
 [[feature]]
 id = "money"
 name = "Dinero infinito"
-description = "Mantiene tu dinero en el máximo que permite el juego (999,999)."
+description = "Mantiene tu dinero en el máximo que permite el juego: 9,999,990 G."
 group = "Trucos"
 default_enabled = false
 

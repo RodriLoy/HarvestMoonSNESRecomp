@@ -56,3 +56,14 @@ label = "3× (9 minutos)"
 [[option.choice]]
 value = "4"
 label = "4× (12 minutos)"
+
+[[feature]]
+id = "pause_menu"
+name = "Menú de pausa (estilo Harvest Moon 64)"
+description = "Tecla M o clic del stick derecho (R3): herramientas, corazones de las chicas y estado de tu granja. El juego queda en pausa mientras está abierto."
+group = "Calidad de vida"
+default_enabled = true
+
+[[plugin]]
+feature = "pause_menu"
+id = "harvestmoon.qol.pause_menu"

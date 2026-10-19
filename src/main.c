@@ -29,6 +29,7 @@
 #include "game_rtl.h"
 #include "snesrecomp_rom_identity.h"  /* generated from rom_identity.txt */
 #include "hm_default_config.h"
+#include "hm_pause.h"
 
 #ifndef __ANDROID__
 #define SDL_MAIN_HANDLED 1
@@ -63,6 +64,13 @@ static const SnesDesktopHostGame kGameHost = {
     .in_game_launcher    = 1,
     .rewind_settings     = 1,
     .default_config_ini  = kHmDefaultConfigIni,
+    /* Pause menu (quality-of-life feature): M / R3. */
+    .title_overlay_poll_open  = hm_pause_poll_open,
+    .title_overlay_is_open    = hm_pause_is_open,
+    .title_overlay_handle_key = hm_pause_handle_key,
+    .title_overlay_poll_nav   = hm_pause_poll_nav,
+    .title_overlay_image      = hm_pause_image,
+    .title_overlay_closed     = hm_pause_closed,
 };
 
 #ifndef __ANDROID__
