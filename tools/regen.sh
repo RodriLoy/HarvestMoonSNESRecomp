@@ -89,6 +89,14 @@ GEN_ARGS=(--rom "$ROM" --cfg-dir recomp --out-dir src/gen
           --funcs-h recomp/funcs.h --project-root "$ROOT")
 if [ "$CFG_ROOTS" -eq 1 ]; then GEN_ARGS+=(--cfg-roots); fi
 if [ "$VERIFY" -eq 1 ]; then GEN_ARGS+=("${VERIFY_ARGS[@]}"); fi
+# Coverage captures (recomp/profiles/*.json + *.jsonl) seed extra AOT roots:
+# every function the interpreter was seen entering, with its exact M/X widths.
+# Record more with SNESRECOMP_TIER2_CAPTURE=1 SNESRECOMP_COVERAGE_DIR=<dir>.
+if [ -d recomp/profiles ]; then
+  for _p in recomp/profiles/*.json recomp/profiles/*.jsonl; do
+    [ -f "$_p" ] && GEN_ARGS+=(--profile-manifest "$_p")
+  done
+fi
 
 echo "== Generating src/gen =="
 "$PYTHON" "$CLI" generate "${GEN_ARGS[@]}"
