@@ -139,14 +139,6 @@ snesrecomp_target_desktop_host(HarvestMoonSNESRecomp)
 # opens on that dump rather than asking for one.
 snesrecomp_target_rom_cache(HarvestMoonSNESRecomp)
 
-# Shader presets: the framework's shared catalog plus this port's own
-# (shaders/: crisp pixels at any size incl. 4K, and Scale4x smoothing).
-snesrecomp_target_shader_presets(HarvestMoonSNESRecomp)
-add_custom_command(TARGET HarvestMoonSNESRecomp POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${CMAKE_SOURCE_DIR}/shaders" "$<TARGET_FILE_DIR:HarvestMoonSNESRecomp>/assets/shaders"
-  VERBATIM)
-
 # Shared Dear ImGui pre-boot launcher (ROM picker, verification, display /
 # audio / input settings). Self-contained: it brings its own ImGui, GL link and
 # staged assets, and defines RECOMP_LAUNCHER so src/main.c compiles its GUI path.
