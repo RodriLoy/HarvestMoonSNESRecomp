@@ -69,12 +69,15 @@ perfecto: simplemente no lo descargues.
 
 ### Pantalla ancha 16:9 *(activada por defecto)*
 Muestra más mapa a los lados en lugar de barras negras, con personajes y
-animales dibujados también en los márgenes. Al llegar al borde de un mapa, en
-cuartos pequeños y en el título vuelve al 4:3 original, porque ahí el juego no
-tiene nada que dibujar. Con la opción apagada la imagen es idéntica al
-original, píxel por píxel.
+animales dibujados también en los márgenes. El logo de Natsume, la pantalla de
+título y la elección del diario también llenan toda la pantalla. Al llegar al
+borde de un mapa y en cuartos pequeños vuelve al 4:3 original, porque ahí el
+juego no tiene nada que dibujar. Con la opción apagada la imagen es idéntica
+al original, píxel por píxel.
 
 ![Pantalla ancha](docs/screenshots/widescreen.png)
+
+![Logo de Natsume, título y elección del diario en 16:9](docs/screenshots/boot_widescreen.png)
 
 ### Menú de pausa estilo Harvest Moon 64 *(tecla M o clic del stick derecho)*
 Un menú de pausa a pantalla completa dibujado a la resolución del SNES, así que

@@ -70,12 +70,15 @@ that's completely fine — just don't download it.
 
 ### Widescreen 16:9 *(on by default)*
 Shows more of the map at the sides instead of black bars, with characters and
-animals drawn in the margins too. At a map's edge, in small rooms and on the
-title screen it falls back to the original 4:3, because there the game has
-nothing to draw. With the option off, the picture is identical to the
-original, pixel for pixel.
+animals drawn in the margins too. The Natsume logo, the title screen and the
+diary selection fill the whole screen as well. At a map's edge and in small
+rooms it falls back to the original 4:3, because there the game has nothing
+to draw. With the option off, the picture is identical to the original, pixel
+for pixel.
 
 ![Widescreen](docs/screenshots/widescreen.png)
+
+![Natsume logo, title screen and diary selection in 16:9](docs/screenshots/boot_widescreen.png)
 
 ### Harvest Moon 64-style pause menu *(M key or right-stick click)*
 A full-screen pause menu drawn at the SNES's own resolution, so its pixels are

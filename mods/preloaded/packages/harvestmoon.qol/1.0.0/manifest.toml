@@ -96,7 +96,7 @@ id = "harvestmoon.qol.endless"
 [[feature]]
 id = "widescreen"
 name = "Widescreen (16:9)"
-description = "Shows more of the map at the sides instead of black bars. At a map's edge, in small rooms and on the title screen it looks like the original (4:3)."
+description = "Shows more of the map at the sides instead of black bars; the Natsume logo, the title screen and the diary selection fill the screen too. At a map's edge and in small rooms it looks like the original (4:3)."
 group = "Video"
 default_enabled = true
 

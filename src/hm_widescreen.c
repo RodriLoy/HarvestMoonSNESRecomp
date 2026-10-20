@@ -76,6 +76,25 @@ static bool in_field_map(void)
   return g_ram[HM_MAP_ID] < HM_MAP_FIRST_PICTURE;
 }
 
+/* The three screens before the game starts, measured with the margins
+ * forced open (HM-Decomp map ids):
+ *   $5D  Natsume logo: a plain white picture, so it simply extends.
+ *   $5C  title: the sky and clouds are a repeating layer and continue; the
+ *        sign sits in the middle with empty space around it.
+ *   $5E  diary selection ("New Diary" / "Choose Diary"): the green checker
+ *        with the scrolling "Harvest Moon" pattern repeats and continues, but
+ *        the wooden fence boxes (BG1) would repeat as well, so BG1 is kept to
+ *        the native 256 columns and only the background fills the margins.
+ * Every other single-picture screen (intro, name entry...) stays 4:3. */
+static bool open_boot_screen(uint8_t map, uint8_t *clamp_extra)
+{
+  switch (map) {
+  case 0x5D: case 0x5C: *clamp_extra = 0; return true;
+  case 0x5E: *clamp_extra = 1u << 0; return true;
+  default: return false;
+  }
+}
+
 /* The world camera the PPU rendered BG1 with: its 10-bit scroll, unwrapped
  * next to the WRAM camera. */
 static int ppu_camera(int wram_cam)
@@ -111,7 +130,11 @@ void hm_ws_begin_sim_frame(unsigned number)
   int fw = 256 + 2 * budget;
   if (fw != s.window_fw) { s.window_fw = fw; ChangeWindowScale(0); }
   int l = 0, r = 0;
-  if (s.enabled && budget > 0 && in_field_map()) {
+  /* Boot screens that are one picture but whose background really goes on
+   * past 256 columns (see open_boot_screen): open fully. */
+  uint8_t clamp_extra = 0;
+  if (s.enabled && budget > 0 && open_boot_screen(g_ram[HM_MAP_ID], &clamp_extra)) { l = r = budget; }
+  else if (s.enabled && budget > 0 && in_field_map()) {
     int cl = hm_rd16(g_ram, HM_CAM_MIN_X), cr = hm_rd16(g_ram, HM_CAM_MAX_X);
     int cam = hm_rd16(g_ram, HM_CAM_X);
     if (cr >= cl) {
@@ -135,7 +158,7 @@ void hm_ws_begin_sim_frame(unsigned number)
       for (int x = budget + 256 + r; x < width; x++) row[x] = 0;
     }
   }
-  if (l || r) PpuSetWidescreenLayerClamp(g_ppu, 1u << 2);   /* BG3: text, clock */
+  if (l || r) PpuSetWidescreenLayerClamp(g_ppu, (uint8_t)((1u << 2) | clamp_extra));   /* BG3: text, clock */
   set_oam_bounds(s.enabled ? l : 0, s.enabled ? r : 0);
   if (ws_debug() && (l != s.last_l || r != s.last_r))
     fprintf(stderr, "[hm-ws] margins L=%d R=%d (map %02x cam %d clamp %d..%d)\n", l, r,
