@@ -85,12 +85,20 @@ static bool in_field_map(void)
  *        with the scrolling "Harvest Moon" pattern repeats and continues, but
  *        the wooden fence boxes (BG1) would repeat as well, so BG1 is kept to
  *        the native 256 columns and only the background fills the margins.
- * Every other single-picture screen (intro, name entry...) stays 4:3. */
-static bool open_boot_screen(uint8_t map, uint8_t *clamp_extra)
+ *   $3C  intro road (the boy and his father walking): the road, fences and
+ *        grass repeat every 16 pixels, but the tilemap past the 256 columns
+ *        sits 8 pixels higher, so BG1/BG2 repeat the visible picture instead.
+ *   $5B  the pan over the farm gate up to the sky: a real wide panorama, so it
+ *        simply extends.
+ * Every other single-picture screen (name entry...) stays 4:3. */
+static bool open_boot_screen(uint8_t map, uint8_t *clamp_extra, uint8_t *repeat)
 {
+  *clamp_extra = 0;
+  *repeat = 0;
   switch (map) {
-  case 0x5D: case 0x5C: *clamp_extra = 0; return true;
+  case 0x5D: case 0x5C: case 0x5B: return true;
   case 0x5E: *clamp_extra = 1u << 0; return true;
+  case 0x3C: *repeat = (1u << 0) | (1u << 1); return true;
   default: return false;
   }
 }
@@ -132,8 +140,8 @@ void hm_ws_begin_sim_frame(unsigned number)
   int l = 0, r = 0;
   /* Boot screens that are one picture but whose background really goes on
    * past 256 columns (see open_boot_screen): open fully. */
-  uint8_t clamp_extra = 0;
-  if (s.enabled && budget > 0 && open_boot_screen(g_ram[HM_MAP_ID], &clamp_extra)) { l = r = budget; }
+  uint8_t clamp_extra = 0, repeat = 0;
+  if (s.enabled && budget > 0 && open_boot_screen(g_ram[HM_MAP_ID], &clamp_extra, &repeat)) { l = r = budget; }
   else if (s.enabled && budget > 0 && in_field_map()) {
     int cl = hm_rd16(g_ram, HM_CAM_MIN_X), cr = hm_rd16(g_ram, HM_CAM_MAX_X);
     int cam = hm_rd16(g_ram, HM_CAM_X);
@@ -158,6 +166,7 @@ void hm_ws_begin_sim_frame(unsigned number)
       for (int x = budget + 256 + r; x < width; x++) row[x] = 0;
     }
   }
+  PpuSetWidescreenLayerRepeat(g_ppu, (l || r) ? repeat : 0);
   if (l || r) PpuSetWidescreenLayerClamp(g_ppu, (uint8_t)((1u << 2) | clamp_extra));   /* BG3: text, clock */
   set_oam_bounds(s.enabled ? l : 0, s.enabled ? r : 0);
   if (ws_debug() && (l != s.last_l || r != s.last_r))

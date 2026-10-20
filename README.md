@@ -70,8 +70,8 @@ that's completely fine — just don't download it.
 
 ### Widescreen 16:9 *(on by default)*
 Shows more of the map at the sides instead of black bars, with characters and
-animals drawn in the margins too. The Natsume logo, the title screen and the
-diary selection fill the whole screen as well. At a map's edge and in small
+animals drawn in the margins too. The Natsume logo, the intro, the title screen
+and the diary selection fill the whole screen as well. At a map's edge and in small
 rooms it falls back to the original 4:3, because there the game has nothing
 to draw. With the option off, the picture is identical to the original, pixel
 for pixel.
