@@ -1,0 +1,4 @@
+# Keep patches and scripts byte-exact on every OS (git am and bash need LF).
+*.patch -text
+*.sh text eol=lf
+*.py text eol=lf

@@ -159,8 +159,12 @@ recomp_target_launcher_ui(HarvestMoonSNESRecomp CONSOLE snes
 # Program icon (Windows: embedded resource; elsewhere the launcher window loads
 # assets/img/icon.png, see src/hm_launcher_theme.c).
 if(WIN32)
-  enable_language(RC)
-  target_sources(HarvestMoonSNESRecomp PRIVATE src/hm_app.rc)
+  include(CheckLanguage)
+  check_language(RC)                  # the icon is optional: no resource
+  if(CMAKE_RC_COMPILER)               # compiler, no icon, still a build
+    enable_language(RC)
+    target_sources(HarvestMoonSNESRecomp PRIVATE src/hm_app.rc)
+  endif()
 endif()
 add_custom_command(TARGET HarvestMoonSNESRecomp POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
