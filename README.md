@@ -18,10 +18,34 @@ multi-language launcher.
 > expect rough edges. Please report what you find in the Issues.
 
 > [!IMPORTANT]
-> **You need your own, legally obtained copy of the game.** This repository
-> contains **no ROM and no game data**, and no pre-built executables are
-> distributed (they would contain code translated from the game). You build
-> the port yourself from your own cartridge dump. Please do not ask for ROMs.
+> **You need your own, legally obtained copy of the game.** Neither this
+> repository nor the downloads contain the ROM or any code translated from it.
+> Please do not ask for ROMs.
+
+## Download
+
+**[⬇ Download the latest release](https://github.com/RodriLoy/HarvestMoonSNESRecomp/releases/latest)**
+
+| System | File |
+|---|---|
+| Windows 10/11 (x64, and Windows on ARM such as Snapdragon) | `harvestmoon-…-windows-x64.zip` |
+| Linux x64 | `harvestmoon-…-linux-x64.zip` |
+
+No commands needed:
+
+1. Download the zip for your system and unzip it anywhere.
+2. Open `HarvestMoonSNESRecomp.exe` (Windows) or `HarvestMoonSNESRecomp` (Linux).
+3. Pick **your own** *Harvest Moon (USA)* ROM when the launcher asks for it.
+4. The launcher translates the game to C and builds it **on your computer**
+   (a few minutes, only the first time), then starts it. After that it opens
+   straight into the game.
+
+Why it works this way: a ready-made executable would contain code translated
+from the game, so it can't be shared. The download is a *setup pack* — the
+launcher, the recompiler, this source code and portable build tools — and the
+game itself is made from your copy, on your machine. If Windows shows
+"Windows protected your PC", choose *More info → Run anyway* (the program
+isn't digitally signed).
 
 ## Why this exists
 
@@ -118,9 +142,10 @@ picture by saving it as `assets/img/portada.png` (or `.jpg`) next to the game.
 
 Xbox, PlayStation and Switch Pro controllers are detected automatically.
 
-## Building
+## Building from source
 
-You need: Git, Python 3, Rust (stable), CMake, Ninja and a C/C++ compiler
+Only needed if you want to change the code; players can use the download
+above. You need: Git, Python 3, Rust (stable), CMake, Ninja and a C/C++ compiler
 (GCC or Clang), plus **your own ROM** of *Harvest Moon (USA)*:
 
 | | |
@@ -165,13 +190,41 @@ generated C (`src/gen/`) is derived from the game, so it is never committed —
   three-year playthrough hasn't been done yet.
 - Only the USA version of the game is supported.
 
-## Credits and license
+## Credits
 
-See [CREDITS.md](CREDITS.md) for everything this port is built on, and thanks
-to everyone behind it. This repository's own code is under the
-[PolyForm Noncommercial 1.0.0](LICENSE) license; it covers no part of the game.
-*Harvest Moon* belongs to its rights holders; this is a non-commercial fan
-project, not affiliated with them.
+This port stands on other people's work — thank you to all of them.
+
+- **[HM-Decomp](https://github.com/ElisaS-Codes/HM-Decomp)** by **ElisaS-Codes**
+  and **DasK** — the disassembly of Harvest Moon they started in 2023. Its
+  labels, RAM map and notes are where this port's understanding of the game
+  comes from: the RAM names, the tool shed rules, the ending check behind the
+  endless game, the festivals and the hearts used by the pause menu.
+- **[snesrecomp](https://github.com/RetroPortingToolKit/snesrecomp)**
+  (RetroPortingToolKit / Matthew Stanley) — the static recompiler, runtime,
+  desktop host, setup packs and release template this port is built on.
+- **[recomp-ui](https://github.com/mstan/recomp-ui)** (Matthew Stanley) — the
+  launcher.
+- **[SDL3](https://libsdl.org)**, **[Dear ImGui](https://github.com/ocornut/imgui)**
+  — window, input, audio and the launcher UI.
+- **[Pixelify Sans](https://github.com/eifetx/Pixelify-Sans)** and
+  **[Tiny5](https://github.com/Gissio/font_tiny5)** (SIL OFL) — the pause
+  menu's pixel fonts; **[DejaVu](https://dejavu-fonts.github.io)** fonts.
+- **[bsnes](https://github.com/bsnes-emu/bsnes)** and
+  **[Snes9x](https://github.com/snes9xgit/snes9x)** — reference emulators used
+  to check the recompilation frame by frame (not distributed).
+- **[Zig](https://ziglang.org)** and **[MinGW-w64](https://www.mingw-w64.org)**
+  — the Windows ARM64 and x64 builds.
+- **Harvest Moon** © 1996 Pack-In-Video / AMCCUS, © 1997 Natsume. All names,
+  characters and graphics belong to their owners; this is a non-commercial fan
+  project, not affiliated with or endorsed by them.
+
+Full details, including the original artwork made for this port, are in
+[CREDITS.md](CREDITS.md).
+
+## License
+
+This repository's own code is under the [PolyForm Noncommercial 1.0.0](LICENSE)
+license; it covers no part of the game.
 
 ---
 

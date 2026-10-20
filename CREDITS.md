@@ -23,7 +23,7 @@ parte del juego: necesitas tu propia copia obtenida legalmente.
 |---|---|---|---|
 | [snesrecomp](https://github.com/RetroPortingToolKit/snesrecomp) | RetroPortingToolKit / Matthew Stanley | The static recompiler, runtime and desktop host this port is built on (submodule + patches) / El recompilador estático, runtime y host de escritorio sobre el que está hecho | PolyForm Noncommercial 1.0.0 |
 | [recomp-ui](https://github.com/mstan/recomp-ui) | Matthew Stanley | The launcher (ROM picker, settings, Mods page) (submodule + patches) / El launcher | MIT |
-| [HM-Decomp](https://github.com/ElisaS-Codes/HM-Decomp) | ElisaS-Codes | The disassembly whose labels and notes made the RAM map, the endless-game hook and the pause menu possible / El desensamblado cuyas etiquetas y notas hicieron posible el mapa de RAM, el juego infinito y el menú de pausa | — |
+| [HM-Decomp](https://github.com/ElisaS-Codes/HM-Decomp) | ElisaS-Codes and DasK (since 2023) | The disassembly whose labels and notes made the RAM map, the endless-game hook and the pause menu possible / El desensamblado cuyas etiquetas y notas hicieron posible el mapa de RAM, el juego infinito y el menú de pausa | — |
 | [SDL3](https://libsdl.org) | SDL contributors | Window, input, audio | zlib |
 | [Dear ImGui](https://github.com/ocornut/imgui) | Omar Cornut | Launcher UI (via recomp-ui) | MIT |
 | [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) | The Pixelify Sans Project Authors | Pause menu text / Texto del menú de pausa | SIL OFL 1.1 |
