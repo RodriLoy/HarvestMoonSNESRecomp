@@ -1,0 +1,34 @@
+From ee7670cf8eaaaf4fee0a254e09dca0a2c0e98b03 Mon Sep 17 00:00:00 2001
+From: Rodrigo <32554920+RodriLoy@users.noreply.github.com>
+Date: Mon, 19 Oct 2026 22:18:28 -0600
+Subject: [PATCH] desktop host: a shader preset with the renderer on Auto
+ selects OpenGL
+
+Shader presets run only on the OpenGL presenter. With [Graphics] Renderer
+left on Auto, choosing a shader now picks OpenGL as well, instead of a
+shader that silently does nothing. An explicit renderer choice is kept.
+---
+ runner/src/desktop/host_main.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/runner/src/desktop/host_main.c b/runner/src/desktop/host_main.c
+index 62f1902..722ba99 100644
+--- a/runner/src/desktop/host_main.c
++++ b/runner/src/desktop/host_main.c
+@@ -545,6 +545,13 @@ static int RendererChoice(void) {
+   if (!want[0])
+     want = g_config.output_method == kOutputMethod_OpenGL ? "opengl" :
+            g_config.output_method == kOutputMethod_SDLSoftware ? "software" : "auto";
++  /* A shader preset only runs on the OpenGL presenter. With the renderer
++   * left on Auto, picking a shader picks OpenGL too, instead of a shader
++   * that silently does nothing. An explicit renderer choice is respected. */
++  if (!strcmp(want, "auto") && g_config.shader && g_config.shader[0]) {
++    for (int i = 0; i < g_renderer_count; ++i)
++      if (!strcmp(g_renderer_id[i], "opengl")) return i;
++  }
+   for (int i = 0; i < g_renderer_count; ++i)
+     if (!strcmp(g_renderer_id[i], want)) return i;
+   if (strcmp(want, "auto"))
+-- 
+2.43.0
+

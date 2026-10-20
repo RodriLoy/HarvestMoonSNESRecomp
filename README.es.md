@@ -76,6 +76,18 @@ original, píxel por píxel.
 
 ![Pantalla ancha](docs/screenshots/widescreen.png)
 
+### Pantallas grandes y 4K *(nuevo en 0.8.1)*
+Dos shaders hechos para este port, en el launcher en *Ajustes → Shader*:
+- **Pixel Sharp 4k** — píxeles nítidos y perfectamente cuadrados a cualquier
+  tamaño de ventana o pantalla (1080p, 1440p, 4K), sin los píxeles desiguales
+  del escalado normal.
+- **Pixel Smooth 4x** — redondea los escalones en diagonales y curvas (dos
+  pasos Scale2x/EPX, 4× de detalle) y luego escala nítido a tu pantalla.
+
+Al elegir un shader, el renderizador cambia a OpenGL solo. El arte sigue
+siendo el pixel art original del SNES: esto lo hace verse limpio en pantallas
+grandes, no lo redibuja.
+
 ### Menú de pausa estilo Harvest Moon 64 *(tecla M o clic del stick derecho)*
 Un menú de pausa a pantalla completa dibujado a la resolución del SNES, así que
 sus píxeles son del mismo tamaño que los del juego:

@@ -83,6 +83,9 @@ static const SnesDesktopHostGame kGameHost = {
     /* Widescreen (quality-of-life feature): the runner's widened PPU field,
      * with the per-frame margins decided by hm_widescreen.c. */
     .native_widescreen   = 1,
+    /* GLSL presets in the launcher (Settings -> Shader): the framework's and
+     * this port's own (shaders/: Pixel Sharp, Pixel Smooth). */
+    .shader_supported    = 1,
     .prepare_frame       = hm_ws_prepare_frame,
     .begin_sim_frame     = hm_ws_begin_sim_frame,
     /* Launcher look: Harvest Moon colors (src/hm_launcher_theme.c). */
