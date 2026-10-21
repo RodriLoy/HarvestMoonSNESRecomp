@@ -22,6 +22,10 @@
  *           CODE_8187C3 and the tool table at $81:BE0F (see hm_ram.h).
  *   Hearts  the five bachelorettes' affection ($7F1F1F.., 0..999).
  *   Farm    money, shipping, stock, cows, happiness, tomorrow's weather.
+ *   Calendar  the season as a month: today, tomorrow's weather, the six
+ *           festivals (the game's own "Events of the year" list) and where
+ *           the girls go at weekends (the townsfolk's own hints). The d-pad
+ *           picks a day; past the 1st or the 30th it turns to the next season.
  */
 
 #include <math.h>
@@ -54,7 +58,8 @@ enum { GRID_COLS = 8, GRID_ROWS = 3 };
 static struct {
   bool enabled;          /* feature on (activation plugin ran) */
   bool open;
-  int tab;               /* 0 tools, 1 hearts, 2 farm */
+  int tab;               /* 0 tools, 1 hearts, 2 farm, 3 calendar */
+  int cal_off, cal_day;  /* calendar: seasons from today's, picked day 1..30 */
   int cx, cy;            /* tools cursor: cy -1 = top slots (cx 0 hand, 1 bag) */
   char message[96];      /* feedback line, tools page */
   uint32_t prev_pad, held_since, last_repeat, held_dir;
@@ -457,12 +462,13 @@ static void draw_top(void)
   rect(171, 42, (int)(74 * st / mx), 3, st * 4 < mx ? RED : GREEN);
 }
 
-static const char *kTabs[3] = { "Tools", "Hearts", "Farm" };
+enum { NTABS = 4 };
+static const char *kTabs[NTABS] = { "Tools", "Hearts", "Farm", "Calendar" };
 
 static void draw_tabs(void)
 {
   int x = 8;
-  for (int t = 0; t < 3; t++) {
+  for (int t = 0; t < NTABS; t++) {
     const char *name = T(kTabs[t]);
     int w = text_w(SMALL, name) + 12;
     bool on = t == s.tab;
@@ -475,7 +481,8 @@ static void draw_tabs(void)
     else text_sh(SMALL, x + 6, y + 9, name, CREAM);
     x += w + 2;
   }
-  text_sh(SMALL, 250 - text_w(SMALL, T("L / R  tabs")), 63, T("L / R  tabs"), CREAM);
+  int hw = text_w(SMALL, T("L / R  tabs"));
+  if (x + 4 <= 250 - hw) text_sh(SMALL, 250 - hw, 63, T("L / R  tabs"), CREAM);
 }
 
 static void draw_tools(int x, int y)
@@ -558,11 +565,12 @@ static void draw_hearts(int x, int y)
   }
 }
 
+static const char *kWeatherNames[12] = { "Sunny", "Rain", "Snow", "Hurricane", "Fair", "Storm",
+  "Flower Festival", "Harvest Festival", "Thanksgiving",
+  "Star Night Festival", "New Year", "Egg Festival" };
+
 static void draw_farm(int x, int y)
 {
-  static const char *weather[12] = { "Sunny", "Rain", "Snow", "Hurricane", "Fair", "Storm",
-    "Flower Festival", "Harvest Festival", "Thanksgiving",
-    "Star Night Festival", "New Year", "Egg Festival" };
   uint8_t *r = g_ram;
   char v[64];
   int row = 0, col = 0;
@@ -578,9 +586,200 @@ static void draw_farm(int x, int y)
   ITEM("Cows", "%u", r[HM_COW_N]);
   ITEM("Happiness", "%u / 999", hm_rd16(r, HM_HAPPINESS));
   ITEM("Dog hugs", "%u", hm_rd16(r, HM_DOG_HUGS));
-  ITEM("Tomorrow's weather", "%s", r[HM_WEATHER_TOMORROW] < 12 ? T(weather[r[HM_WEATHER_TOMORROW]]) : "?");
+  ITEM("Tomorrow's weather", "%s", r[HM_WEATHER_TOMORROW] < 12 ? T(kWeatherNames[r[HM_WEATHER_TOMORROW]]) : "?");
   ITEM("Stamina", "%u / %u", r[HM_CURRENT_STAMINA], r[HM_MAX_STAMINA]);
 #undef ITEM
+}
+
+/* ── Calendar ────────────────────────────────────────────────────────── */
+/* The festivals, from the game's own "Events of the year" message. */
+enum { FEST_NEWYEAR, FEST_FLOWER, FEST_HARVEST, FEST_EGG, FEST_THANKS, FEST_STARS, NFEST };
+static const struct { uint8_t season, day; const char *name, *note; } kFests[NFEST] = {
+  { 0,  1, "New Year",            "See the first sunrise." },
+  { 0, 23, "Flower Festival",     "At the town square." },
+  { 2, 12, "Harvest Festival",    "At the town square." },
+  { 2, 20, "Egg Festival",        "At the town square." },
+  { 3, 10, "Thanksgiving",        "The girls bake cakes." },
+  { 3, 24, "Star Night Festival", "Ann goes to the spa, Ellen to the town square." },
+};
+static int festival_on(int season, int day)
+{
+  for (int i = 0; i < NFEST; i++)
+    if (kFests[i].season == season && kFests[i].day == day) return i;
+  return -1;
+}
+
+/* 7x7 pictures. Letters pick the colour. */
+static const char *kFestArt[NFEST][7] = {
+  { ".......", "..RRR..", ".RRRRR.", "RRRRRRR", "KKKKKKK", ".......", "......." },   /* sunrise */
+  { "..P.P..", ".PPPPP.", "PPPYPPP", ".PPPPP.", "..PGP..", "...G...", "..GGG.." },   /* flower */
+  { "...G...", "..GO...", ".OOOOO.", "OOoOoOO", "OOoOoOO", "OOoOoOO", ".OOOOO." },   /* pumpkin */
+  { "..KKK..", ".KCCCK.", "KCCCCCK", "KCCCCCK", "KCCCCCK", ".KCCCK.", "..KKK.." },   /* egg */
+  { "...R...", "...C...", ".CCCCC.", "PPPPPPP", "CCCCCCC", "WWWWWWW", "WWWWWWW" },   /* cake */
+  { "...Y...", "..YYY..", "YYYYYYY", ".YYYYY.", "..YYY..", ".YY.YY.", "YY...YY" },   /* star */
+};
+static const char *kWeatherArt[4][7] = {
+  { "...Y...", ".Y...Y.", "..YYY..", "Y.YYY.Y", "..YYY..", ".Y...Y.", "...Y..." },   /* sun */
+  { "..SSS..", ".SSSSS.", "SSSSSSS", ".......", ".B.B.B.", "B.B.B..", "......." },   /* rain */
+  { "...b...", ".b.b.b.", "..bbb..", "bbbbbbb", "..bbb..", ".b.b.b.", "...b..." },   /* snow */
+  { ".DDDDD.", "DDDDDDD", ".DDDDD.", "...YY..", "..YY...", ".YYYY..", "...Y..." },   /* storm */
+};
+static void art7(int x, int y, const char *const art[7])
+{
+  for (int j = 0; j < 7; j++)
+    for (int i = 0; i < 7; i++) {
+      uint32_t c = 0;
+      switch (art[j][i]) {
+        case 'R': c = RED; break;            case 'K': c = INK_SOFT; break;
+        case 'P': c = RGB(0xF27AA8); break;  case 'Y': c = GOLD; break;
+        case 'G': c = GREEN; break;          case 'O': c = RGB(0xEC8A2A); break;
+        case 'o': c = RGB(0xB85A16); break;  case 'C': c = CREAM; break;
+        case 'W': c = WOOD; break;           case 'S': c = RGB(0x9AA4B0); break;
+        case 'B': c = BLUE; break;           case 'b': c = RGB(0x6AA8E8); break;
+        case 'D': c = RGB(0x5A6270); break;
+      }
+      if (c) px(x + i, y + j, c);
+    }
+}
+/* Tomorrow's weather as a picture; -1 for festival codes (the festival's own
+ * picture is shown on that day instead). */
+static int weather_art(uint8_t code)
+{
+  switch (code) {
+    case HM_WEATHER_SUNNY: case HM_WEATHER_FAIR_STORY: return 0;
+    case HM_WEATHER_RAIN: return 1;
+    case HM_WEATHER_SNOW: return 2;
+    case HM_WEATHER_HURRICANE: case HM_WEATHER_THUNDER: return 3;
+    default: return -1;
+  }
+}
+
+/* Seasons are 30 days and the week never skips, so any day's weekday
+ * follows from today's. Seasons are counted from the first spring. */
+static int season_index(void) { return g_ram[HM_YEAR] * 4 + (g_ram[HM_SEASON] & 3); }
+static int weekday_of(int sidx, int day)
+{
+  long delta = (long)(sidx - season_index()) * 30 + (day - g_ram[HM_DAY]);
+  return (int)(((g_ram[HM_WEEKDAY] % 7 + delta) % 7 + 7) % 7);
+}
+
+/* Write `t` over lines no wider than `w`, breaking at spaces. */
+static int wrap(const HmPixFont *f, int x, int y, int w, int lh, const char *t, uint32_t col, int ymax)
+{
+  char line[160] = "", word[64];
+  while (*t) {
+    int n = 0;
+    while (*t == ' ') t++;
+    while (*t && *t != ' ' && n < (int)sizeof word - 1) word[n++] = *t++;
+    word[n] = 0;
+    if (!n) break;
+    char trial[160];
+    snprintf(trial, sizeof trial, line[0] ? "%s %s" : "%s%s", line, word);
+    if (line[0] && text_w(f, trial) > w) {
+      if (y <= ymax) text(f, x, y, line, col);
+      y += lh;
+      snprintf(line, sizeof line, "%s", word);
+    } else {
+      snprintf(line, sizeof line, "%s", trial);
+    }
+  }
+  if (line[0]) { if (y <= ymax) text(f, x, y, line, col); y += lh; }
+  return y;
+}
+
+static void cal_reset(void) { s.cal_off = 0; s.cal_day = g_ram[HM_DAY] ? g_ram[HM_DAY] : 1; }
+
+static void cal_move(int d)
+{
+  int day = s.cal_day + d, off = s.cal_off;
+  while (day < 1)  { day += 30; off--; }
+  while (day > 30) { day -= 30; off++; }
+  if (season_index() + off < 0) { off = -season_index(); day = 1; }
+  if (off > 8) { off = 8; day = 30; }
+  s.cal_off = off; s.cal_day = day;
+}
+
+static void draw_calendar(int x, int y)
+{
+  static const char *ini[7] = { "Su", "Mo", "Tu", "We", "Th", "Fr", "Sa" };
+  enum { CW = 18, CH = 14 };
+  int sidx = season_index() + s.cal_off;
+  int season = sidx & 3, year = sidx / 4;
+  int first = weekday_of(sidx, 1);
+  int today_off = 0, today = g_ram[HM_DAY];
+  /* tomorrow, possibly in the next season */
+  int tom_sidx = season_index() + (today >= 30), tom_day = today >= 30 ? 1 : today + 1;
+  int wart = weather_art(g_ram[HM_WEATHER_TOMORROW]);
+
+  for (int c = 0; c < 7; c++)
+    text_c(SMALL, x + c * CW + CW / 2, y + 7, T(ini[c]),
+           c == 0 ? RED : c == 6 ? BLUE : INK_SOFT);
+  int gy = y + 10;
+  for (int d = 1; d <= 30; d++) {
+    int cell = first + d - 1, cx = x + (cell % 7) * CW, cy = gy + (cell / 7) * CH;
+    bool is_today = s.cal_off == today_off && d == today;
+    bool past = s.cal_off < 0 || (s.cal_off == 0 && d < today);
+    int f = festival_on(season, d);
+    uint32_t fill = is_today ? SELECT : past ? PAPER_DARK : f >= 0 ? CREAM : PAPER;
+    rect(cx, cy, CW - 1, CH - 1, is_today ? GOLD_DARK : PAPER_LINE);
+    rect(cx + 1, cy + 1, CW - 3, CH - 3, fill);
+    if (f >= 0) hline(cx + 1, cy + 1, CW - 3, kSeasonCol[season]);
+    char n[4]; snprintf(n, sizeof n, "%d", d);
+    int wd = cell % 7;
+    text(SMALL, cx + 2, cy + 7, n, past ? INK_SOFT : wd == 0 ? RED : wd == 6 ? BLUE : INK);
+    if (f >= 0) art7(cx + 9, cy + 5, kFestArt[f]);
+    else if (wart >= 0 && sidx == tom_sidx && d == tom_day) art7(cx + 9, cy + 5, kWeatherArt[wart]);
+    if (d == s.cal_day) {                       /* the cursor: a red frame */
+      rect(cx - 1, cy - 1, CW + 1, 1, RED); rect(cx - 1, cy + CH - 1, CW + 1, 1, RED);
+      rect(cx - 1, cy - 1, 1, CH + 1, RED); rect(cx + CW - 1, cy - 1, 1, CH + 1, RED);
+    }
+  }
+
+  /* right column: the picked day */
+  int rx = x + 7 * CW + 6, rw = 236 - rx + 8;
+  rect(rx - 4, y + 1, 1, 96, PAPER_LINE);
+  char buf[96];
+  snprintf(buf, sizeof buf, T("Year %u"), (unsigned)year + 1u);
+  int sw = text_w(SMALL, T(kSeasons[season])) + 8;
+  rect(rx, y + 1, sw, 10, kSeasonCol[season]);
+  hline(rx, y + 10, sw, WOOD_EDGE);
+  text_sh(SMALL, rx + 4, y + 8, T(kSeasons[season]), CREAM);
+  text(SMALL, rx + sw + 4, y + 8, buf, INK_SOFT);
+
+  int wd = weekday_of(sidx, s.cal_day);
+  snprintf(buf, sizeof buf, "%d", s.cal_day);
+  int nx = text(BODY, rx, y + 25, buf, INK);
+  text(SMALL, nx + 3, y + 25, T(kDays[wd]), wd == 0 ? RED : wd == 6 ? BLUE : INK_SOFT);
+
+  int ly = y + 36, ymax = y + 96;
+  bool is_today = s.cal_off == 0 && s.cal_day == today;
+  bool is_tom = sidx == tom_sidx && s.cal_day == tom_day;
+  if (is_today) { text(SMALL, rx, ly, T("Today"), GOLD_DARK); ly += 9; }
+  if (is_tom) {
+    snprintf(buf, sizeof buf, "%s: %s", T("Tomorrow"),
+             wart >= 0 ? T(kWeatherNames[g_ram[HM_WEATHER_TOMORROW]]) : T("festival"));
+    if (wart >= 0) art7(rx, ly - 6, kWeatherArt[wart]);
+    text(SMALL, rx + (wart >= 0 ? 10 : 0), ly, buf, INK);
+    ly += 9;
+  }
+  int f = festival_on(season, s.cal_day);
+  if (f >= 0) {
+    art7(rx, ly - 6, kFestArt[f]);
+    ly = wrap(SMALL, rx + 10, ly, rw - 10, 9, T(kFests[f].name), INK, ymax);
+    ly = wrap(SMALL, rx, ly, rw, 9, T(kFests[f].note), INK_SOFT, ymax);
+  }
+  if (wd == 6 || wd == 0) {
+    static const char *sat[] = { "Maria: at the church", "Nina: picking herbs", "Ellen: behind the pen",
+                                 "Eve: on the mountain", "Ann: her lucky day" };
+    static const char *sun[] = { "Maria: at the church", "Nina: on the mountain", "Eve: on the mountain",
+                                 "The bar is closed" };
+    const char **l = wd == 6 ? sat : sun;
+    int n = wd == 6 ? 5 : 4;
+    if (ly + 9 <= ymax) { ly += 2; }
+    for (int i = 0; i < n && ly <= ymax; i++) { text(SMALL, rx, ly, T(l[i]), INK_SOFT); ly += 9; }
+  } else if (f < 0 && !is_today && !is_tom) {
+    text(SMALL, rx, ly, T("A normal day."), INK_SOFT);
+  }
 }
 
 static void draw_textbox(void)
@@ -597,11 +796,18 @@ static void draw_textbox(void)
   } else if (s.tab == 1) {
     text(SMALL, x, 192, T("Marks: 200 heart event · 450 first child ·"), INK);
     text(SMALL, x, 201, T("650 second child · maximum 999"), INK);
-  } else {
+  } else if (s.tab == 2) {
     char d[96];
     snprintf(d, sizeof d, T("%s, %s %u, Year %u"), T(kDays[g_ram[HM_WEEKDAY] % 7]),
              T(kSeasons[g_ram[HM_SEASON] & 3]), g_ram[HM_DAY], g_ram[HM_YEAR] + 1u);
     text(BODY, x, 196, d, INK);
+  } else {
+    int sidx = season_index() + s.cal_off;
+    char d[96];
+    snprintf(d, sizeof d, T("%s, %s %u, Year %u"), T(kDays[weekday_of(sidx, s.cal_day)]),
+             T(kSeasons[sidx & 3]), (unsigned)s.cal_day, (unsigned)(sidx / 4) + 1u);
+    text(BODY, x, 193, d, INK);
+    text(SMALL, x, 205, T("D-pad  pick a day (and other seasons)     A  today"), INK_SOFT);
   }
   text(SMALL, x, 214, T("B / M / Esc  close     ·     the game is paused"), INK_SOFT);
   /* the blinking-arrow corner of a game text box, standing still */
@@ -616,7 +822,8 @@ static void render(void)
   frame(4, 68, 248, 106, PAPER);
   if (s.tab == 0) draw_tools(12, 72);
   else if (s.tab == 1) draw_hearts(10, 73);
-  else draw_farm(12, 73);
+  else if (s.tab == 2) draw_farm(12, 73);
+  else draw_calendar(12, 72);
   draw_textbox();
   /* Double every pixel. With widescreen on, the field is wider than 256:
    * the floor carries on into the margins (same squares, same phase), so
@@ -638,9 +845,11 @@ static void render(void)
 }
 
 /* ── Input ───────────────────────────────────────────────────────────── */
+static void tab(int dir);
 static void move(int dx, int dy)
 {
-  if (s.tab != 0) { if (dx) s.tab = (s.tab + 3 + dx) % 3; return; }
+  if (s.tab == 3) { cal_move(dx + dy * 7); return; }
+  if (s.tab != 0) { if (dx) tab(dx); return; }
   s.message[0] = 0;
   if (dy) {
     s.cy += dy;
@@ -654,7 +863,12 @@ static void move(int dx, int dy)
     s.cx = (s.cx + cols + dx) % cols;
   }
 }
-static void tab(int dir) { s.tab = (s.tab + 3 + dir) % 3; s.message[0] = 0; }
+static void tab(int dir)
+{
+  s.tab = (s.tab + NTABS + dir) % NTABS;
+  s.message[0] = 0;
+  if (s.tab == 3) cal_reset();
+}
 static void close_menu(void) { s.open = false; }
 
 static void do_action(char a)
@@ -666,7 +880,7 @@ static void do_action(char a)
     case 'r': move(+1, 0); break;
     case 'L': tab(-1); break;
     case 'R': tab(+1); break;
-    case 'A': action_a(); break;
+    case 'A': if (s.tab == 3) cal_reset(); else action_a(); break;
     case 'X': action_x(); break;
     case 'Y': action_y(); break;
     case 'B': close_menu(); break;
@@ -729,6 +943,7 @@ static void open_menu(void)
   s.nav_primed = false;
   s.message[0] = 0;
   if (s.cy >= GRID_ROWS || s.cy < -1) s.cy = 0;
+  cal_reset();
   render();
 }
 

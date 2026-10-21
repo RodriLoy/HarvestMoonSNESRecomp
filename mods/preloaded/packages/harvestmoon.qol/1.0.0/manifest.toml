@@ -63,7 +63,7 @@ label = "4x (12 minutes)"
 [[feature]]
 id = "pause_menu"
 name = "Pause menu (Harvest Moon 64 style)"
-description = "M key or right-stick click (R3): tools, the girls' hearts and your farm's status. The game is paused while it is open."
+description = "M key or right-stick click (R3): tools, the girls' hearts, your farm's status and a calendar. The game is paused while it is open."
 group = "Quality of life"
 default_enabled = true
 

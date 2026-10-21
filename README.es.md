@@ -90,11 +90,17 @@ sus píxeles son del mismo tamaño que los del juego:
   diez corazones cuyo color sube con el cariño.
 - **Granja** — envíos, madera, forraje, vacas, felicidad, abrazos al perro y el
   clima de mañana.
+- **Calendario** — la estación como un mes: hoy, el clima de mañana, los seis
+  festivales y a dónde van las chicas el fin de semana (de las listas del propio
+  juego y de las pistas de los aldeanos). Pasa del 1 o del 30 para ver otras
+  estaciones.
 - **La música sigue sonando** con el menú abierto.
 
-| Herramientas | Corazones | Español |
-|---|---|---|
-| ![Herramientas](docs/screenshots/pause_tools.png) | ![Corazones](docs/screenshots/pause_hearts.png) | ![Menú en español](docs/screenshots/pause_tools_es.png) |
+| Herramientas | Corazones |
+|---|---|
+| ![Herramientas](docs/screenshots/pause_tools.png) | ![Corazones](docs/screenshots/pause_hearts.png) |
+| **Menú en español** | **Calendario** |
+| ![Menú en español](docs/screenshots/pause_tools_es.png) | ![Calendario](docs/screenshots/pause_calendar_es.png) |
 
 ### Juego infinito *(activado por defecto)*
 El original termina el 30 de verano del año 3. Ahora ves el final completo y

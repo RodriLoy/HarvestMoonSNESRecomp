@@ -56,8 +56,8 @@ static const LauncherI18nPair kEs[] = {
   {"3x (9 minutes)", "3× (9 minutos)"},
   {"4x (12 minutes)", "4× (12 minutos)"},
   {"Pause menu (Harvest Moon 64 style)", "Menú de pausa (estilo Harvest Moon 64)"},
-  {"M key or right-stick click (R3): tools, the girls' hearts and your farm's status. The game is paused while it is open.",
-   "Tecla M o clic del stick derecho (R3): herramientas, corazones de las chicas y estado de tu granja. El juego queda en pausa mientras está abierto."},
+  {"M key or right-stick click (R3): tools, the girls' hearts, your farm's status and a calendar. The game is paused while it is open.",
+   "Tecla M o clic del stick derecho (R3): herramientas, corazones de las chicas, estado de tu granja y un calendario. El juego queda en pausa mientras está abierto."},
   {"OPTIONS on the title screen", "OPTIONS en la pantalla de título"},
   {"Adds a fourth entry, OPTIONS, below HOW TO PLAY, which opens this options menu.",
    "Agrega una cuarta opción, OPTIONS, debajo de HOW TO PLAY, que abre este menú de opciones."},
@@ -112,6 +112,20 @@ static const LauncherI18nPair kEs[] = {
   {"Harvest Festival", "Festival de la cosecha"}, {"Thanksgiving", "Día de acción de gracias"},
   {"Star Night Festival", "Festival de las estrellas"}, {"New Year", "Año nuevo"},
   {"Egg Festival", "Festival del huevo"},
+  /* pause menu: calendar */
+  {"Calendar", "Calendario"},
+  {"Su", "Do"}, {"Mo", "Lu"}, {"Tu", "Ma"}, {"We", "Mi"}, {"Th", "Ju"}, {"Fr", "Vi"}, {"Sa", "Sá"},
+  {"Today", "Hoy"}, {"Tomorrow", "Mañana"}, {"festival", "festival"},
+  {"A normal day.", "Un día normal."},
+  {"D-pad  pick a day (and other seasons)     A  today", "Cruceta  elige un día (y otras estaciones)     A  hoy"},
+  {"See the first sunrise.", "Ve a ver el primer amanecer."},
+  {"At the town square.", "En la plaza del pueblo."},
+  {"The girls bake cakes.", "Las chicas hornean pasteles."},
+  {"Ann goes to the spa, Ellen to the town square.", "Ann va a las aguas termales; Ellen, a la plaza."},
+  {"Maria: at the church", "María: en la iglesia"}, {"Nina: picking herbs", "Nina: recoge hierbas"},
+  {"Ellen: behind the pen", "Ellen: detrás del corral"}, {"Eve: on the mountain", "Eve: en la montaña"},
+  {"Ann: her lucky day", "Ann: su día de suerte"}, {"Nina: on the mountain", "Nina: en la montaña"},
+  {"The bar is closed", "El bar está cerrado"},
 };
 
 /* ── Italiano ────────────────────────────────────────────────────────── */
@@ -154,8 +168,8 @@ static const LauncherI18nPair kIt[] = {
   {"1.5x (4.5 minutes)", "1,5× (4,5 minuti)"}, {"2x (6 minutes)", "2× (6 minuti)"},
   {"3x (9 minutes)", "3× (9 minuti)"}, {"4x (12 minutes)", "4× (12 minuti)"},
   {"Pause menu (Harvest Moon 64 style)", "Menu di pausa (stile Harvest Moon 64)"},
-  {"M key or right-stick click (R3): tools, the girls' hearts and your farm's status. The game is paused while it is open.",
-   "Tasto M o clic dello stick destro (R3): attrezzi, cuori delle ragazze e stato della fattoria. Il gioco resta in pausa mentre è aperto."},
+  {"M key or right-stick click (R3): tools, the girls' hearts, your farm's status and a calendar. The game is paused while it is open.",
+   "Tasto M o clic dello stick destro (R3): attrezzi, cuori delle ragazze, stato della fattoria e un calendario. Il gioco resta in pausa mentre è aperto."},
   {"OPTIONS on the title screen", "OPTIONS nella schermata del titolo"},
   {"Adds a fourth entry, OPTIONS, below HOW TO PLAY, which opens this options menu.",
    "Aggiunge una quarta voce, OPTIONS, sotto HOW TO PLAY, che apre questo menu di opzioni."},
@@ -207,6 +221,20 @@ static const LauncherI18nPair kIt[] = {
   {"Harvest Festival", "Festa del raccolto"}, {"Thanksgiving", "Ringraziamento"},
   {"Star Night Festival", "Festa delle stelle"}, {"New Year", "Capodanno"},
   {"Egg Festival", "Festa delle uova"},
+  /* pause menu: calendar */
+  {"Calendar", "Calendario"},
+  {"Su", "Do"}, {"Mo", "Lu"}, {"Tu", "Ma"}, {"We", "Me"}, {"Th", "Gi"}, {"Fr", "Ve"}, {"Sa", "Sa"},
+  {"Today", "Oggi"}, {"Tomorrow", "Domani"}, {"festival", "festa"},
+  {"A normal day.", "Un giorno normale."},
+  {"D-pad  pick a day (and other seasons)     A  today", "Croce  scegli un giorno (e altre stagioni)     A  oggi"},
+  {"See the first sunrise.", "Vai a vedere la prima alba."},
+  {"At the town square.", "Nella piazza del paese."},
+  {"The girls bake cakes.", "Le ragazze preparano torte."},
+  {"Ann goes to the spa, Ellen to the town square.", "Ann va alle terme, Ellen in piazza."},
+  {"Maria: at the church", "Maria: in chiesa"}, {"Nina: picking herbs", "Nina: raccoglie erbe"},
+  {"Ellen: behind the pen", "Ellen: dietro il recinto"}, {"Eve: on the mountain", "Eve: in montagna"},
+  {"Ann: her lucky day", "Ann: il suo giorno fortunato"}, {"Nina: on the mountain", "Nina: in montagna"},
+  {"The bar is closed", "Il bar è chiuso"},
 };
 
 __attribute__((constructor)) static void hm_i18n_register(void)

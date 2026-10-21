@@ -91,11 +91,16 @@ the same size as the game's:
   with ten hearts whose colour rises with her affection.
 - **Farm** — shipping, lumber, fodder, cows, happiness, dog hugs, tomorrow's
   weather.
+- **Calendar** — the season as a month: today, tomorrow's weather, the six
+  festivals and where the girls go at weekends (from the game's own lists and
+  the townsfolk's hints). Move past the 1st or the 30th to see other seasons.
 - **The music keeps playing** while the menu is open.
 
-| Tools | Hearts | Farm |
-|---|---|---|
-| ![Tools](docs/screenshots/pause_tools.png) | ![Hearts](docs/screenshots/pause_hearts.png) | ![Farm](docs/screenshots/pause_farm.png) |
+| Tools | Hearts |
+|---|---|
+| ![Tools](docs/screenshots/pause_tools.png) | ![Hearts](docs/screenshots/pause_hearts.png) |
+| **Farm** | **Calendar** |
+| ![Farm](docs/screenshots/pause_farm.png) | ![Calendar](docs/screenshots/pause_calendar.png) |
 
 ### Endless game *(on by default)*
 The original ends on Summer 30 of Year 3. Now you watch the ending in full,
