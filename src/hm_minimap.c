@@ -418,22 +418,23 @@ static void draw_hud(void)
     int cx = (me ? hm_rd16(g_ram, HM_PLAYER_X) : xs[i]) / u - vx;
     int cy = ((me ? hm_rd16(g_ram, HM_PLAYER_Y) : ys[i]) - 8) / u - vy;   /* feet -> body */
     if (cx < 0 || cy < 0 || cx >= HUD_W || cy >= HUD_H) continue;
-    /* a 12x12 badge, kept inside the map window */
-    int ix = cx - 6, iy = cy - 6;
+    /* a 9x9 badge (the face's 7x7 middle), kept inside the map window */
+    enum { BS = 9 };
+    int ix = cx - BS / 2, iy = cy - BS / 2;
     if (ix < 0) ix = 0;
     if (iy < 0) iy = 0;
-    if (ix > HUD_W - 12) ix = HUD_W - 12;
-    if (iy > HUD_H - 12) iy = HUD_H - 12;
+    if (ix > HUD_W - BS) ix = HUD_W - BS;
+    if (iy > HUD_H - BS) iy = HUD_H - BS;
     const uint32_t *face = hm_minimap_face(id);
-    for (int y = 0; y < 12; y++) {
+    for (int y = 0; y < BS; y++) {
       uint32_t *row = (uint32_t *)(buf + (size_t)(by + HUD_B + iy + y) * g_ppu->renderPitch);
-      for (int x = 0; x < 12; x++) {
-        bool border = x == 0 || y == 0 || x == 11 || y == 11;
-        bool corner = (x == 0 || x == 11) && (y == 0 || y == 11);
+      for (int x = 0; x < BS; x++) {
+        bool border = x == 0 || y == 0 || x == BS - 1 || y == BS - 1;
+        bool corner = (x == 0 || x == BS - 1) && (y == 0 || y == BS - 1);
         if (corner) continue;
         uint32_t c = border ? (me ? red : edge) : cream;
         if (!border && face) {
-          uint32_t f = face[(y + 1) * 16 + (x + 2)];   /* the face's 10x10 middle */
+          uint32_t f = face[(y + 2) * 16 + (x + 4)];
           if (f) c = f;
         }
         put(row, bx + HUD_B + ix + x, width, c);

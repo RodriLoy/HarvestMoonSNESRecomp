@@ -793,17 +793,24 @@ static void draw_calendar(int x, int y)
 }
 
 /* ── Map ─────────────────────────────────────────────────────────────── */
-/* Someone's face from their own sprite, in an 18x18 frame (red for you). */
-static void badge(int x, int y, uint16_t id, bool me)
+/* Someone's face from their own sprite: an 18x18 frame for the list on the
+ * right, a 12x12 one (the middle of the face) on the map itself. Red is you. */
+static void badge_sized(int x, int y, uint16_t id, bool me, int sz)
 {
-  rect(x + 1, y, 16, 18, me ? RED : WOOD_EDGE);
-  rect(x, y + 1, 18, 16, me ? RED : WOOD_EDGE);
-  rect(x + 1, y + 1, 16, 16, CREAM);
+  int in = sz - 2, off = (16 - in) / 2;
+  rect(x + 1, y, sz - 2, sz, me ? RED : WOOD_EDGE);
+  rect(x, y + 1, sz, sz - 2, me ? RED : WOOD_EDGE);
+  rect(x + 1, y + 1, in, in, CREAM);
   const uint32_t *f = hm_minimap_face(id);
   if (f)
-    for (int j = 0; j < 16; j++)
-      for (int i = 0; i < 16; i++) if (f[j * 16 + i]) px(x + 1 + i, y + 1 + j, f[j * 16 + i]);
+    for (int j = 0; j < in; j++)
+      for (int i = 0; i < in; i++) {
+        int fy = j + (sz < 18 ? 1 : 0), fx = i + off;
+        uint32_t c = f[fy * 16 + fx];
+        if (c) px(x + 1 + i, y + 1 + j, c);
+      }
 }
+static void badge(int x, int y, uint16_t id, bool me) { badge_sized(x, y, id, me, 18); }
 
 static void draw_map(int x, int y)
 {
@@ -838,9 +845,9 @@ static void draw_map(int x, int y)
 #define MAPY(wy) (my + ((wy) - y0) / 4 / k * u + u / 2)
     n_people = hm_minimap_people(xs, ys, ids, 40);
     for (int i = 0; i < n_people; i++)
-      badge(MAPX(xs[i]) - 9, MAPY(ys[i] - 8) - 9, ids[i], false);
-    badge(MAPX(hm_rd16(g_ram, HM_PLAYER_X)) - 9, MAPY(hm_rd16(g_ram, HM_PLAYER_Y) - 8) - 9,
-          hm_minimap_player_sprite(), true);
+      badge_sized(MAPX(xs[i]) - 6, MAPY(ys[i] - 8) - 6, ids[i], false, 12);
+    badge_sized(MAPX(hm_rd16(g_ram, HM_PLAYER_X)) - 6, MAPY(hm_rd16(g_ram, HM_PLAYER_Y) - 8) - 6,
+                hm_minimap_player_sprite(), true, 12);
 #undef MAPX
 #undef MAPY
   } else {
