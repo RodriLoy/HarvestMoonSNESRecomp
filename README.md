@@ -94,6 +94,10 @@ the same size as the game's:
 - **Calendar** — the season as a month: today, tomorrow's weather, the six
   festivals and where the girls go at weekends (from the game's own lists and
   the townsfolk's hints). Move past the 1st or the 30th to see other seasons.
+- **Map** — the whole place you are in (farm, town, mountain or a room), drawn
+  from the game's own map in memory with today's colours. Everyone there shows
+  as their **own face** (drawn from their sprite in your ROM), the girls with
+  their names. From here you also switch on the **minimap**.
 - **The music keeps playing** while the menu is open.
 
 | Tools | Hearts |
@@ -101,6 +105,14 @@ the same size as the game's:
 | ![Tools](docs/screenshots/pause_tools.png) | ![Hearts](docs/screenshots/pause_hearts.png) |
 | **Farm** | **Calendar** |
 | ![Farm](docs/screenshots/pause_farm.png) | ![Calendar](docs/screenshots/pause_calendar.png) |
+| **Map** | **Minimap while you play** |
+| ![Map](docs/screenshots/pause_map.png) | ![Minimap](docs/screenshots/minimap.png) |
+
+### Minimap *(off by default; pause menu → Map → A)*
+A small map at the bottom right of the screen, centred on you, with the face of
+every person and animal around you (rooms are shown twice as big). It hides itself during text, cut-scenes and
+fades, and your choice is remembered (`hm_options.ini`). With it off the
+picture is exactly the original.
 
 ### Endless game *(on by default)*
 The original ends on Summer 30 of Year 3. Now you watch the ending in full,

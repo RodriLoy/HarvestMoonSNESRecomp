@@ -94,6 +94,11 @@ sus píxeles son del mismo tamaño que los del juego:
   festivales y a dónde van las chicas el fin de semana (de las listas del propio
   juego y de las pistas de los aldeanos). Pasa del 1 o del 30 para ver otras
   estaciones.
+- **Mapa** — el lugar completo donde estás (granja, pueblo, montaña o un
+  cuarto), dibujado con el mapa que el propio juego tiene en memoria y con los
+  colores de la hora. Cada persona aparece con **su propia cara** (sacada de su
+  sprite en tu ROM) y las chicas con su nombre. Desde aquí también prendes el
+  **minimapa**.
 - **La música sigue sonando** con el menú abierto.
 
 | Herramientas | Corazones |
@@ -101,6 +106,14 @@ sus píxeles son del mismo tamaño que los del juego:
 | ![Herramientas](docs/screenshots/pause_tools.png) | ![Corazones](docs/screenshots/pause_hearts.png) |
 | **Menú en español** | **Calendario** |
 | ![Menú en español](docs/screenshots/pause_tools_es.png) | ![Calendario](docs/screenshots/pause_calendar_es.png) |
+| **Mapa** | **Minimapa mientras juegas** |
+| ![Mapa](docs/screenshots/pause_map_es.png) | ![Minimapa](docs/screenshots/minimap.png) |
+
+### Minimapa *(apagado por defecto; menú de pausa → Mapa → A)*
+Un mapa pequeño abajo a la derecha de la pantalla, centrado en ti, con la cara
+de cada persona y animal cercano (los cuartos se ven al doble de tamaño). Se esconde solo durante los textos,
+escenas y transiciones, y tu elección se recuerda (`hm_options.ini`). Apagado,
+la imagen es exactamente la original.
 
 ### Juego infinito *(activado por defecto)*
 El original termina el 30 de verano del año 3. Ahora ves el final completo y

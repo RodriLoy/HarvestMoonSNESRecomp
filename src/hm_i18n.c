@@ -126,6 +126,19 @@ static const LauncherI18nPair kEs[] = {
   {"Ellen: behind the pen", "Ellen: detrás del corral"}, {"Eve: on the mountain", "Eve: en la montaña"},
   {"Ann: her lucky day", "Ann: su día de suerte"}, {"Nina: on the mountain", "Nina: en la montaña"},
   {"The bar is closed", "El bar está cerrado"},
+  /* pause menu: map */
+  {"Map", "Mapa"}, {"No map here.", "Aquí no hay mapa."},
+  {"You", "Tú"}, {"People and animals", "Personas y animales"},
+  {"Minimap on screen:", "Minimapa en pantalla:"}, {"ON", "Sí"}, {"OFF", "No"},
+  {"A  switch", "A  cambiar"},
+  {"Your farm", "Tu granja"}, {"Town", "Pueblo"}, {"Your house", "Tu casa"},
+  {"Mayor's house", "Casa del alcalde"}, {"Maria's room", "Cuarto de María"},
+  {"Church", "Iglesia"}, {"Flower shop", "Florería"}, {"Bar", "Bar"},
+  {"Restaurant", "Restaurante"}, {"General store", "Tienda"},
+  {"Animal shop", "Tienda de animales"}, {"Witch's house", "Casa de la bruja"},
+  {"Tool shed", "Bodega"}, {"Barn", "Establo"}, {"Chicken coop", "Gallinero"},
+  {"Cave", "Cueva"}, {"Crossroads", "Cruce de caminos"}, {"Mountain", "Montaña"},
+  {"Mountain top", "Cima de la montaña"},
 };
 
 /* ── Italiano ────────────────────────────────────────────────────────── */
@@ -235,6 +248,19 @@ static const LauncherI18nPair kIt[] = {
   {"Ellen: behind the pen", "Ellen: dietro il recinto"}, {"Eve: on the mountain", "Eve: in montagna"},
   {"Ann: her lucky day", "Ann: il suo giorno fortunato"}, {"Nina: on the mountain", "Nina: in montagna"},
   {"The bar is closed", "Il bar è chiuso"},
+  /* pause menu: map */
+  {"Map", "Mappa"}, {"No map here.", "Qui non c'è una mappa."},
+  {"You", "Tu"}, {"People and animals", "Persone e animali"},
+  {"Minimap on screen:", "Minimappa a schermo:"}, {"ON", "Sì"}, {"OFF", "No"},
+  {"A  switch", "A  cambia"},
+  {"Your farm", "La tua fattoria"}, {"Town", "Paese"}, {"Your house", "Casa tua"},
+  {"Mayor's house", "Casa del sindaco"}, {"Maria's room", "Stanza di Maria"},
+  {"Church", "Chiesa"}, {"Flower shop", "Fioraio"}, {"Bar", "Bar"},
+  {"Restaurant", "Ristorante"}, {"General store", "Emporio"},
+  {"Animal shop", "Negozio di animali"}, {"Witch's house", "Casa della strega"},
+  {"Tool shed", "Ripostiglio"}, {"Barn", "Stalla"}, {"Chicken coop", "Pollaio"},
+  {"Cave", "Grotta"}, {"Crossroads", "Incrocio"}, {"Mountain", "Montagna"},
+  {"Mountain top", "Cima della montagna"},
 };
 
 __attribute__((constructor)) static void hm_i18n_register(void)

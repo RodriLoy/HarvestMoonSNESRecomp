@@ -26,6 +26,9 @@
  *           festivals (the game's own "Events of the year" list) and where
  *           the girls go at weekends (the townsfolk's own hints). The d-pad
  *           picks a day; past the 1st or the 30th it turns to the next season.
+ *   Map     the whole place you are in, with you and everyone around, and the
+ *           switch for the small map at the bottom of the screen
+ *           (hm_minimap.c).
  */
 
 #include <math.h>
@@ -46,6 +49,7 @@
 #include "hm_pause.h"
 #include "hm_i18n.h"
 #include "hm_widescreen.h"
+#include "hm_minimap.h"
 
 /* ── Canvas: 256x224 logical pixels, shown doubled (512x448) ─────────── */
 enum { LW = 256, LH = 224, WMAX = 400, PH = LH * 2 };
@@ -58,7 +62,7 @@ enum { GRID_COLS = 8, GRID_ROWS = 3 };
 static struct {
   bool enabled;          /* feature on (activation plugin ran) */
   bool open;
-  int tab;               /* 0 tools, 1 hearts, 2 farm, 3 calendar */
+  int tab;               /* 0 tools, 1 hearts, 2 farm, 3 calendar, 4 map */
   int cal_off, cal_day;  /* calendar: seasons from today's, picked day 1..30 */
   int cx, cy;            /* tools cursor: cy -1 = top slots (cx 0 hand, 1 bag) */
   char message[96];      /* feedback line, tools page */
@@ -462,23 +466,29 @@ static void draw_top(void)
   rect(171, 42, (int)(74 * st / mx), 3, st * 4 < mx ? RED : GREEN);
 }
 
-enum { NTABS = 4 };
-static const char *kTabs[NTABS] = { "Tools", "Hearts", "Farm", "Calendar" };
+enum { NTABS = 5, TAB_CAL = 3, TAB_MAP = 4 };
+static const char *kTabs[NTABS] = { "Tools", "Hearts", "Farm", "Calendar", "Map" };
 
 static void draw_tabs(void)
 {
+  /* as much padding as the five names leave room for */
+  int pad = 12, total;
+  do {
+    total = 8;
+    for (int t = 0; t < NTABS; t++) total += text_w(SMALL, T(kTabs[t])) + pad + 2;
+  } while (total > 250 && --pad > 6);
   int x = 8;
   for (int t = 0; t < NTABS; t++) {
     const char *name = T(kTabs[t]);
-    int w = text_w(SMALL, name) + 12;
+    int w = text_w(SMALL, name) + pad;
     bool on = t == s.tab;
     int y = on ? 53 : 55;
     rect(x + 1, y, w - 2, 70 - y, WOOD_EDGE);
     rect(x, y + 1, w, 69 - y, WOOD_EDGE);
     rect(x + 1, y + 1, w - 2, 69 - y, on ? PAPER : WOOD);
     hline(x + 2, y + 1, w - 4, on ? CREAM : WOOD_LIGHT);
-    if (on) text(SMALL, x + 6, y + 9, name, INK);
-    else text_sh(SMALL, x + 6, y + 9, name, CREAM);
+    if (on) text(SMALL, x + pad / 2, y + 9, name, INK);
+    else text_sh(SMALL, x + pad / 2, y + 9, name, CREAM);
     x += w + 2;
   }
   int hw = text_w(SMALL, T("L / R  tabs"));
@@ -782,6 +792,89 @@ static void draw_calendar(int x, int y)
   }
 }
 
+/* ── Map ─────────────────────────────────────────────────────────────── */
+/* Someone's face from their own sprite, in an 18x18 frame (red for you). */
+static void badge(int x, int y, uint16_t id, bool me)
+{
+  rect(x + 1, y, 16, 18, me ? RED : WOOD_EDGE);
+  rect(x, y + 1, 18, 16, me ? RED : WOOD_EDGE);
+  rect(x + 1, y + 1, 16, 16, CREAM);
+  const uint32_t *f = hm_minimap_face(id);
+  if (f)
+    for (int j = 0; j < 16; j++)
+      for (int i = 0; i < 16; i++) if (f[j * 16 + i]) px(x + 1 + i, y + 1 + j, f[j * 16 + i]);
+}
+
+static void draw_map(int x, int y)
+{
+  enum { AW = 150, AH = 128 };
+  int w, h, x0, y0;
+  int xs[40], ys[40], n_people = 0;
+  uint16_t ids[40];
+  /* the picture: as big as fits, whole cells or averages of k x k */
+  if (hm_minimap_snapshot(&w, &h, &x0, &y0)) {
+    int k = 1;
+    while (w / k > AW || h / k > AH) k++;
+    int u = 1;
+    if (k == 1) while (w * (u + 1) <= AW && h * (u + 1) <= AH && u < 3) u++;
+    int pw = w / k * u, ph = h / k * u;
+    int mx = x + (AW - pw) / 2, my = y + (AH - ph) / 2;
+    rect(mx - 2, my - 2, pw + 4, ph + 4, WOOD_EDGE);
+    rect(mx - 1, my - 1, pw + 2, ph + 2, WOOD_DARK);
+    int cx0 = x0 / 4, cy0 = y0 / 4;
+    for (int j = 0; j < h / k; j++)
+      for (int i = 0; i < w / k; i++) {
+        uint32_t r = 0, g = 0, b = 0;
+        for (int dy = 0; dy < k; dy++)
+          for (int dx = 0; dx < k; dx++) {
+            uint32_t c = hm_minimap_cell(cx0 + i * k + dx, cy0 + j * k + dy);
+            r += (c >> 16) & 255; g += (c >> 8) & 255; b += c & 255;
+          }
+        uint32_t c = RGB(((r / (k * k)) << 16) | ((g / (k * k)) << 8) | (b / (k * k)));
+        rect(mx + i * u, my + j * u, u, u, c);
+      }
+    /* where world (wx, wy) lands on the picture */
+#define MAPX(wx) (mx + ((wx) - x0) / 4 / k * u + u / 2)
+#define MAPY(wy) (my + ((wy) - y0) / 4 / k * u + u / 2)
+    n_people = hm_minimap_people(xs, ys, ids, 40);
+    for (int i = 0; i < n_people; i++)
+      badge(MAPX(xs[i]) - 9, MAPY(ys[i] - 8) - 9, ids[i], false);
+    badge(MAPX(hm_rd16(g_ram, HM_PLAYER_X)) - 9, MAPY(hm_rd16(g_ram, HM_PLAYER_Y) - 8) - 9,
+          hm_minimap_player_sprite(), true);
+#undef MAPX
+#undef MAPY
+  } else {
+    text_c(SMALL, x + AW / 2, y + AH / 2, T("No map here."), INK_SOFT);
+  }
+
+  /* right column: the place, and the girls who are here */
+  int rx = x + AW + 10, rw = 244 - rx;
+  rect(rx - 5, y, 1, AH + 4, PAPER_LINE);
+  int ly = wrap(BODY, rx, y + 12, rw, 13, T(hm_minimap_place()), INK, y + 60);
+  ly += 2;
+  int shown = 0;
+  for (int i = 0; i < n_people && shown < 3; i++) {
+    const char *name = hm_minimap_name(ids[i]);
+    if (!name) continue;
+    badge(rx, ly - 2, ids[i], false);
+    text(SMALL, rx + 22, ly + 10, T(name), INK);
+    ly += 20; shown++;
+  }
+  if (!shown) {
+    ly += 2;
+    badge(rx, ly - 2, hm_minimap_player_sprite(), true);
+    text(SMALL, rx + 22, ly + 10, T("You"), INK_SOFT);
+    ly += 20;
+  }
+  ly += 4;
+  ly = wrap(SMALL, rx, ly, rw, 9, T("Minimap on screen:"), INK, y + AH);
+  bool on = hm_minimap_hud_on();
+  rect(rx, ly - 6, 30, 12, WOOD_EDGE);
+  rect(rx + 1, ly - 5, 28, 10, on ? GREEN : PAPER_DARK);
+  text_c(SMALL, rx + 15, ly + 3, on ? T("ON") : T("OFF"), on ? CREAM : INK_SOFT);
+  text(SMALL, rx + 34, ly + 3, T("A  switch"), INK_SOFT);
+}
+
 static void draw_textbox(void)
 {
   frame(4, 176, 248, 44, PAPER);
@@ -819,12 +912,19 @@ static void render(void)
   checker();
   draw_top();
   draw_tabs();
-  frame(4, 68, 248, 106, PAPER);
-  if (s.tab == 0) draw_tools(12, 72);
-  else if (s.tab == 1) draw_hearts(10, 73);
-  else if (s.tab == 2) draw_farm(12, 73);
-  else draw_calendar(12, 72);
-  draw_textbox();
+  if (s.tab == TAB_MAP) {
+    /* the map takes the text box's room too */
+    frame(4, 68, 248, 152, PAPER);
+    draw_map(10, 74);
+    text(SMALL, 12, 214, T("B / M / Esc  close     ·     the game is paused"), INK_SOFT);
+  } else {
+    frame(4, 68, 248, 106, PAPER);
+    if (s.tab == 0) draw_tools(12, 72);
+    else if (s.tab == 1) draw_hearts(10, 73);
+    else if (s.tab == 2) draw_farm(12, 73);
+    else draw_calendar(12, 72);
+    draw_textbox();
+  }
   /* Double every pixel. With widescreen on, the field is wider than 256:
    * the floor carries on into the margins (same squares, same phase), so
    * the menu covers the whole picture. */
@@ -848,7 +948,7 @@ static void render(void)
 static void tab(int dir);
 static void move(int dx, int dy)
 {
-  if (s.tab == 3) { cal_move(dx + dy * 7); return; }
+  if (s.tab == TAB_CAL) { cal_move(dx + dy * 7); return; }
   if (s.tab != 0) { if (dx) tab(dx); return; }
   s.message[0] = 0;
   if (dy) {
@@ -867,7 +967,7 @@ static void tab(int dir)
 {
   s.tab = (s.tab + NTABS + dir) % NTABS;
   s.message[0] = 0;
-  if (s.tab == 3) cal_reset();
+  if (s.tab == TAB_CAL) cal_reset();
 }
 static void close_menu(void) { s.open = false; }
 
@@ -880,7 +980,11 @@ static void do_action(char a)
     case 'r': move(+1, 0); break;
     case 'L': tab(-1); break;
     case 'R': tab(+1); break;
-    case 'A': if (s.tab == 3) cal_reset(); else action_a(); break;
+    case 'A':
+      if (s.tab == TAB_CAL) cal_reset();
+      else if (s.tab == TAB_MAP) hm_minimap_set_hud(!hm_minimap_hud_on());
+      else action_a();
+      break;
     case 'X': action_x(); break;
     case 'Y': action_y(); break;
     case 'B': close_menu(); break;
@@ -970,6 +1074,7 @@ int hm_pause_poll_open(uint32_t inputs, uint32_t gamepad_raw)
   return 1;
 }
 int hm_pause_is_open(void) { return s.open; }
+int hm_pause_feature_on(void) { return s.enabled; }
 void hm_pause_handle_key(int k, int repeat) { key(k, repeat); }
 void hm_pause_poll_nav(uint32_t inputs, uint32_t now_ms) { pad_nav(inputs, now_ms); }
 int hm_pause_image(const uint32_t **panel, int *w, int *h)

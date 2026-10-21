@@ -123,6 +123,14 @@ enum {
 #define HM_CAM_MIN_Y        0x000EF /* 16b */
 #define HM_CAM_MAX_X        0x000F1 /* 16b */
 #define HM_CAM_MAX_Y        0x000F3 /* 16b */
+/* Size of the loaded map in 256-pixel screens ($80:B5xx copies them from the
+ * map's Maps_Graphics_Table entry). Its BG1 tilemap is unpacked whole at
+ * $7E:2000, one row of ($0181 * 32) tiles after another. */
+#define HM_MAP_SCREENS_W    0x00181 /* 8b */
+#define HM_MAP_SCREENS_H    0x00182 /* 8b */
+/* Player position in world pixels (feet). */
+#define HM_PLAYER_X         0x000D6 /* 16b */
+#define HM_PLAYER_Y         0x000D8 /* 16b */
 
 static inline uint16_t hm_rd16(const uint8_t *ram, uint32_t a) {
   return (uint16_t)(ram[a] | (ram[a + 1] << 8));

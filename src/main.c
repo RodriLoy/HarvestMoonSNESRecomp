@@ -31,6 +31,7 @@
 #include "hm_default_config.h"
 #include "hm_pause.h"
 #include "hm_widescreen.h"
+#include "hm_minimap.h"
 #include "hm_launcher_theme.h"
 #include "hm_endless.h"
 
@@ -85,6 +86,8 @@ static const SnesDesktopHostGame kGameHost = {
     .native_widescreen   = 1,
     .prepare_frame       = hm_ws_prepare_frame,
     .begin_sim_frame     = hm_ws_begin_sim_frame,
+    /* Minimap at the bottom of the screen (pause menu > Map): hm_minimap.c. */
+    .end_sim_frame       = hm_minimap_end_sim_frame,
     /* Launcher look: Harvest Moon colors (src/hm_launcher_theme.c). */
     .configure_launcher  = hm_configure_launcher,
     /* Endless game (quality-of-life feature): src/hm_endless.c. */
